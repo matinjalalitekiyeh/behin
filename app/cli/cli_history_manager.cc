@@ -8,7 +8,6 @@ cli_history_manager::cli_history_manager() = default;
 void cli_history_manager::add(const std::string& command) {
     if (command.empty()) return;
 
-    // Don't add duplicate consecutive commands
     if (!m_command_history.empty() && m_command_history.back() == command) {
         return;
     }

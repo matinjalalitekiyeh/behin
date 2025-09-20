@@ -8,7 +8,6 @@ enum message_type {
 
 
 cli_command_executor::cli_command_executor(cli_history_manager& hist)
-//    : m_database(db),
     : m_history(hist)
 {}
 

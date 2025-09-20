@@ -36,7 +36,7 @@ void cli_app::exec() {
 
         std::string expanded_input = m_history->expand_references(input);
         if (expanded_input.empty()) {
-            continue; // Skip if history expansion failed
+            continue;
         }
 
         if (expanded_input != input) {
@@ -61,7 +61,6 @@ void cli_app::exec() {
 
 void cli_app::stop() {
     m_running = false;
-    std::cout << "\n✨ Thank you for using Behin CLI. Goodbye! ✨" << std::endl;
 }
 
 void cli_app::print_welcome() const {

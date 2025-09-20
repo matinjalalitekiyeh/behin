@@ -2,7 +2,6 @@
 #define COMMAND_EXECUTOR_HXX
 
 #include "cli_parser.hxx"
-//#include "cli_database.hxx"
 #include "cli_history_manager.hxx"
 #include <algorithm>
 #include <string.h>

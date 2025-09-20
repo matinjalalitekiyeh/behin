@@ -35,7 +35,6 @@ std::string cli_input_handler::read_line(const std::string& prompt) {
     std::string input(input_line);
     free(input_line);
 
-    // Trim whitespace
     boost::algorithm::trim(input);
 
     return input;
