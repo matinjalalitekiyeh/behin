@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+#define SCTP_PROTOCOL_NO 132
+
+#define SCTP_PPID_DIAM 46
+#define SCTP_PPID_S1AP 18
+
 typedef struct {
     uint16_t source_port;
     uint16_t dest_port;

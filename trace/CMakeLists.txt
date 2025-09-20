@@ -13,7 +13,7 @@ add_executable("Trace" ${APP_SOURCES} ${APP_HEADERS})
 target_link_libraries(
     ${EXECUTABLE_NAME}
     PRIVATE
-            "LibBoost_sokcet_client_async"
+#            "LibSocket_mdl"
 )
 
 
