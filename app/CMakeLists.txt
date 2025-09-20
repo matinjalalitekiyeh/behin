@@ -28,6 +28,7 @@ target_link_libraries(
     PRIVATE "LibBoost_sokcet_client_async"
             "LibSocket_mdl" #remove me
             "LibPcap_mdl" #remove me
+            "LibUtilities" #remove me
             ${Boost_LIBRARIES} readline
 )
 
