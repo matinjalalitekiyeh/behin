@@ -128,89 +128,127 @@ void handle_paging(const uint8_t *s1ap_data, int s1ap_length, bool *capture_this
 void handle_downlink_nas_transport(const uint8_t *s1ap_data, int s1ap_length, bool *capture_this)
 {
     printf("Processing downlinkNASTransport\n");
-    /* Add your downlinkNASTransport handling logic here */
 }
+
+typedef struct {
+    uint8_t procedure_code;
+    uint8_t criticality;
+    uint16_t message_length;
+    uint8_t* message_content;
+} s1ap_message_t;
 
 void handle_initial_ue_message(const uint8_t *s1ap_data, int s1ap_length, bool *capture_this)
 {
 
-    printf("\n\n");
+    s1ap_message_t msg = {0};
 
+     if (s1ap_length < 4) {
+         printf("Message too short for S1AP header\n");
+         return;
+     }
+
+     msg.procedure_code = s1ap_data[0];
+     msg.criticality = s1ap_data[1];
+     msg.message_length = (s1ap_data[2] << 8) | s1ap_data[3];
+     msg.message_content = &s1ap_data[4];
+
+
+
+
+
+    uint32_t enb_ue_s1ap_id = 0x00;
     int idx = 2;
+
+    // Check criticality
     if (s1ap_data[idx] != 0x40) {
         printf("initialUEMessage:: Criticality is not ignore\n");
     }
-
     idx++;
-    uint8_t payload_len = s1ap_data[3];
 
+    // Skip length field safely
+    if (idx + 4 >= s1ap_length) {
+        printf("Buffer too short\n");
+        return;
+    }
     idx += 4; /* Skip IE Items NO. */
-    uint16_t protocol_field = htons( *(uint16_t*)&s1ap_data[idx] );
-    printf("%d --> %d", payload_len, protocol_field);
+
+    // Read protocol field safely
+    if (idx + 2 >= s1ap_length) {
+        printf("Buffer too short for protocol field\n");
+        return;
+    }
+    uint16_t protocol_field = (s1ap_data[idx] << 8) | s1ap_data[idx + 1];
+    idx += 2;
 
     printf("\n\n");
 
     if (id_eNB_UE_S1AP_ID == protocol_field) {
-        uint32_t enb_ue_s1ap_id = 0x00;
-        const int len_idx = idx + (int)(sizeof (uint16_t));
-        uint16_t enb_ue_s1ap_id_len = htons( *(uint16_t*)&s1ap_data[len_idx] );
-        const int enb_idx = len_idx + (int)(sizeof (uint16_t));
-        memcpy(&enb_ue_s1ap_id, &s1ap_data[enb_idx], enb_ue_s1ap_id_len);
-        if (enb_ue_s1ap_id_len == 2) {
-            enb_ue_s1ap_id = htons(enb_ue_s1ap_id);
-        } else if (enb_ue_s1ap_id_len == 4) {
-            enb_ue_s1ap_id = htonl(enb_ue_s1ap_id);
+        if (idx + 2 >= s1ap_length) {
+            printf("Buffer too short for length field\n");
+            return;
         }
-        printf("ENB UE S1AP ID: %d\n\n", enb_ue_s1ap_id);
+
+        uint16_t enb_ue_s1ap_id_len = (s1ap_data[idx] << 8) | s1ap_data[idx + 1];
+        idx += 2;
+
+        if (idx + enb_ue_s1ap_id_len > s1ap_length) {
+            printf("Buffer overflow for ENB UE S1AP ID\n");
+            return;
+        }
+
+        // Extract ENB UE S1AP ID safely
+        enb_ue_s1ap_id = 0;
+        for (int i = 0; i < enb_ue_s1ap_id_len; i++) {
+            enb_ue_s1ap_id = (enb_ue_s1ap_id << 8) | s1ap_data[idx + i];
+        }
+        idx += enb_ue_s1ap_id_len;
+
+        printf("ENB UE S1AP ID: %u\n\n", enb_ue_s1ap_id);
     }
 
+    // More robust pattern search with bounds checking
+    int found_idx = -1;
     for (int i = 0; i < s1ap_length - 3; i++) {
         if (s1ap_data[i] == 0x00 && s1ap_data[i+1] == 0x1a && s1ap_data[i+2] == 0x00) {
-            idx = i;
+            found_idx = i;
             break;
         }
     }
 
+    if (found_idx == -1) {
+        printf("Pattern not found\n");
+        return;
+    }
+    idx = found_idx;
 
-    typedef struct {
-        uint8_t msb:4;
-        uint8_t lsb:4;
-    } data_t;
-
-
-    data_t d = {0};
-    memcpy(&d, &s1ap_data[idx + 5], sizeof(data_t));
-    if (d.lsb == 1) {
-        idx += 6;
-    } else {}
-
-
-    uint8_t nas_eps_mobility_management_message_type = *(uint8_t*)&s1ap_data[idx + 6];
-    memcpy(&nas_eps_mobility_management_message_type, &s1ap_data[idx + 6], sizeof(uint8_t));
-    if (nas_eps_mobility_management_message_type == 0x41) {
-        printf("nas_eps_mobility_management_message_type 0x%02X\n", nas_eps_mobility_management_message_type);
-    }else if (nas_eps_mobility_management_message_type == 0x48) {
-        printf("nas_eps_mobility_management_message_type 0x%02X\n", nas_eps_mobility_management_message_type);
+    if (idx + 5 < s1ap_length) {
+        uint8_t byte = s1ap_data[idx + 5];
+        if ((byte & 0x0F) == 1) {
+            idx += 6;
+        }
     }
 
-    /*7*/
-
-    uint8_t guti_type = *(uint8_t*)&s1ap_data[idx + 9];
-    uint8_t type = (guti_type  & 0x07);
-
-    if (type == 6) {
-        uint32_t tmsi = 0x00;
-        memcpy(&tmsi, &s1ap_data[idx + 16], sizeof(uint32_t));
-        tmsi = htonl(tmsi);
-        printf("guti: %d", tmsi);
-    } else if (type == 1) {
-        long long imsi = imsi_direct_to_long_long(&s1ap_data[idx + 9]);
-        printf("imsi: %llu\n", imsi);
+    // NAS message type extraction
+    if (idx + 6 < s1ap_length) {
+        uint8_t nas_eps_mobility_management_message_type = s1ap_data[idx + 6];
+        printf("NAS Message Type: 0x%02X\n", nas_eps_mobility_management_message_type);
     }
 
-    printf("\n\n");
+    // GUTI/IMSI extraction with bounds checking
+    if (idx + 9 < s1ap_length) {
+        uint8_t guti_type = s1ap_data[idx + 9];
+        uint8_t type = (guti_type & 0x07);
 
-    /* Add your initialUEMessage handling logic here */
+        if (type == 6 && idx + 16 + 3 < s1ap_length) {
+            uint32_t tmsi = (s1ap_data[idx + 16] << 24) | (s1ap_data[idx + 17] << 16) |
+                           (s1ap_data[idx + 18] << 8) | s1ap_data[idx + 19];
+            printf("GUTI TMSI: %u\n", tmsi);
+        } else if (type == 1 && idx + 9 + 8 < s1ap_length) {
+            long long imsi = imsi_direct_to_long_long(&s1ap_data[idx + 9]);
+            printf("IMSI: %llu\n", imsi);
+        }
+    }
+
 }
 
 void handle_uplink_nas_transport(const uint8_t *s1ap_data, int s1ap_length, bool *capture_this)

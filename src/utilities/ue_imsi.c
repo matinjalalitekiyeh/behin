@@ -69,13 +69,9 @@ long long imsi_direct_to_long_long(const unsigned char *packet)
         case 14: digit = imsi->digit15; break;
         default: digit = 0;
         }
-        // imsi_str.at(itr--) = digit;
-        // printf("%d", digit);
         result += digit * multiplier;
         multiplier *= 10;
     }
-    // printf("\n\n");
-    // printf("%s", imsi_str.data());
 
     return result;
 }
