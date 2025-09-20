@@ -186,7 +186,7 @@ static void free_avp_list(diam_avp_t *avp_list) {
         avp_list = next;
     }
 }
-static void print_parent_avps(diam_avp_t *parent_avps) {
+static void print_parent_avps(diam_avp_t *parent_avps, uint32_t end_id, uint32_t hop_id) {
 
     if (parent_avps == NULL) {
         printf("No parent AVPs found\n");
@@ -226,6 +226,8 @@ static void print_parent_avps(diam_avp_t *parent_avps) {
                 // Now you can use content_str in your code for comparison
                 if (strcmp(content_str, "999990123456780") == 0) {
                     printf("    MATCH: This is the expected IMSI!\n");
+                    s_end_id = end_id;
+                    s_hop_id  = hop_id;
                 }
 
                 // Or convert to long long if needed
@@ -254,6 +256,11 @@ static void parse_diam_message(const uint8_t *diam_data, int diam_length) {
     uint32_t app_id = (diam_data[8] << 24) | (diam_data[9] << 16) | (diam_data[10] << 8) | diam_data[11];
     uint32_t hop_id = (diam_data[12] << 24) | (diam_data[13] << 16) | (diam_data[14] << 8) | diam_data[15];
     uint32_t end_id = (diam_data[16] << 24) | (diam_data[17] << 16) | (diam_data[18] << 8) | diam_data[19];
+
+
+    if (s_hop_id == hop_id && s_end_id == end_id) {
+        printf("capture this part\n");
+    }
 
 //    printf("DIAMETER Message Header:\n");
 //    printf("  Version: %u\n", version);
@@ -322,7 +329,7 @@ static void parse_diam_message(const uint8_t *diam_data, int diam_length) {
         int avp_data_length = diam_length - 20;
         if (avp_data_length > 0) {
             diam_avp_t *parent_avps = parse_avps(diam_data + 20, avp_data_length);
-            print_parent_avps(parent_avps);
+            print_parent_avps(parent_avps, end_id, hop_id);
             free_avp_list(parent_avps);
         }
     } else {
