@@ -26,7 +26,9 @@ add_executable(${EXECUTABLE_NAME} ${APP_SOURCES} ${APP_HEADERS})
 target_link_libraries(
     ${EXECUTABLE_NAME}
     PRIVATE "LibBoost_sokcet_client_async"
-            "LibBar"
+            "LibSocket_mdl" #remove me
+            "LibPcap_mdl" #remove me
+            "LibUtilities" #remove me
             ${Boost_LIBRARIES} readline
 )
 

@@ -1,11 +1,16 @@
-set(LIBRARY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/bar.cc")
-set(LIBRARY_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/bar.h")
+set(LIBRARY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/ue_imsi.c")
+set(LIBRARY_HEADERS
+    "${CMAKE_CURRENT_SOURCE_DIR}/ue_imsi.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sctp_util.h")
+
+
+
 set(LIBRARY_INCLUDES "./" "${CMAKE_BINARY_DIR}/configured_files/include")
 
-add_library("LibBar" STATIC ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})
-target_include_directories("LibBar" PUBLIC ${LIBRARY_INCLUDES})
+add_library("LibUtilities" STATIC ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})
+target_include_directories("LibUtilities" PUBLIC ${LIBRARY_INCLUDES})
 #target_link_libraries(
-#    "LibBar"
+#    "LibSocket_mdl"
 #    PRIVATE nlohmann_json::nlohmann_json
 #            fmt::fmt
 #            spdlog::spdlog
@@ -14,7 +19,7 @@ target_include_directories("LibBar" PUBLIC ${LIBRARY_INCLUDES})
 if(${ENABLE_WARNINGS})
     target_set_warnings(
         TARGET
-        "LibBar"
+        "LibUtilities"
         ENABLE
         ${ENABLE_WARNINGS}
         AS_ERRORS
@@ -24,11 +29,11 @@ endif()
 if(${ENABLE_LTO})
     target_enable_lto(
         TARGET
-        "LibBar"
+        "LibUtilities"
         ENABLE
         ON)
 endif()
 
 if(${ENABLE_CLANG_TIDY})
-    add_clang_tidy_to_target("LibBar")
+    add_clang_tidy_to_target("LibUtilities")
 endif()
