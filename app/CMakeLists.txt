@@ -4,21 +4,17 @@ set(APP_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_app.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_parser.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_history_manager.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_database.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_input_handler.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_command_executer.cc"
-#        "${CMAKE_CURRENT_SOURCE_DIR}/socket/async_client.cc"
 )
 set(APP_HEADERS
-        "${CMAKE_CURRENT_SOURCE_DIR}/version.hxx"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ver/version.hxx"
 
         "${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_app.hxx"
         "${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_parser.hxx"
         "${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_history_manager.hxx"
-        "${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_database.hxx"
         "${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_input_handler.hxx"
         "${CMAKE_CURRENT_SOURCE_DIR}/cli/cli_command_executer.hxx"
-#        "${CMAKE_CURRENT_SOURCE_DIR}/socket/async_client.hxx"
 
 )
 

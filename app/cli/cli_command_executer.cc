@@ -33,24 +33,6 @@ message_t cli_command_executor::execute(const command& cmd) {
         execute_detach(cmd.args, dm);
         memcpy(msg.data, &dm, sizeof(dm));
     }
-    else if (cmd.name == "detach2") {
-//        detach_message_t dm;
-//        memset(&dm, 0x00, sizeof(tm));
-//        execute_detach(cmd.args, dm);
-//        memcpy(msg.data, &dm, sizeof(dm));
-    }
-    //    else if (cmd.name == "set") {
-    //        execute_set(cmd.args);
-    //    }
-    //    else if (cmd.name == "get") {
-    //        execute_get(cmd.args);
-    //    }
-    //    else if (cmd.name == "list") {
-    //        execute_list();
-    //    }
-    //    else if (cmd.name == "delete") {
-    //        execute_delete(cmd.args);
-    //    }
     else if (cmd.name == "history") {
         execute_history();
     }

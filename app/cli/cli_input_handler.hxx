@@ -15,7 +15,6 @@ public:
     void cleanup_readline();
     void add_to_readline_history(const std::string& command);
 
-    // Readline completion functions
     static char** custom_completion(const char* text, int start, int end);
     static char* custom_generator(const char* text, int state);
 };

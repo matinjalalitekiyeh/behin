@@ -18,12 +18,10 @@ void cli_input_handler::setup_readline() {
     rl_completion_append_character = '\0';
     rl_completion_suppress_append = 0;
 
-    // Enable readline history
     using_history();
 }
 
 void cli_input_handler::cleanup_readline() {
-    // Clear readline history
     clear_history();
 }
 

@@ -1,7 +1,6 @@
 #include "cli_app.hxx"
 #include "cli_parser.hxx"
 #include "cli_history_manager.hxx"
-//#include "cli_database.hxx"
 #include "cli_input_handler.hxx"
 #include "cli_command_executer.hxx"
 #include <iostream>
@@ -12,7 +11,6 @@ cli_app::cli_app(behin_socket::async_client &client)
 {
     m_parser = std::make_unique<cli_parser>();
     m_history = std::make_unique<cli_history_manager>();
-//    m_database = std::make_unique<cli_database>();
     m_input_handler = std::make_unique<cli_input_handler>();
 }
 

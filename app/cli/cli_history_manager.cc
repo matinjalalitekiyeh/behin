@@ -52,12 +52,10 @@ size_t cli_history_manager::size() const {
 std::string cli_history_manager::expand_references(const std::string& input) const {
     std::string result = input;
 
-    // Check if input contains any history reference
     if (input.find('!') == std::string::npos) {
-        return input; // No history reference found
+        return input;
     }
 
-    // Handle different history reference patterns
     std::string temp = handle_bang_bang(result);
     if (temp.empty()) return "";
     if (temp != result) return temp;
@@ -140,9 +138,8 @@ std::string cli_history_manager::handle_bang_string(const std::string& input) co
 
     if (std::regex_search(input, matches, pattern_bang_string)) {
         std::string prefix = matches[1].str();
-        // Search history from most recent to oldest
         for (auto it = m_command_history.rbegin(); it != m_command_history.rend(); ++it) {
-            if (it->find(prefix) == 0) { // Command starts with the prefix
+            if (it->find(prefix) == 0) {
                 return *it;
             }
         }

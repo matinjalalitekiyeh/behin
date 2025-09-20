@@ -31,19 +31,13 @@ struct message_t {
 
 class cli_command_executor {
 private:
-//    cli_database& m_database;
     cli_history_manager& m_history;
 
 public:
     cli_command_executor(cli_history_manager& hist);
-
     message_t execute(const command& cmd);
 
 private:
-//    void execute_detach(const std::vector<std::string>& args);
-//    void execute_get(const std::vector<std::string>& args);
-//    void execute_list() const;
-//    void execute_delete(const std::vector<std::string>& args);
     void execute_history() const;
     void execute_clear() const;
     void execute_help() const;
