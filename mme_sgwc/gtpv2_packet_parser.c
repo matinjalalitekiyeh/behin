@@ -1,12 +1,16 @@
 #include "gtpv2_packet_parser.h"
 
-static void print_gtpv2_info(const struct gtpv2_header *gtp, const struct iphdr *ip, const struct udphdr *udp)
-{
+struct gtpv2_header {
+    uint8_t flags;
+    uint8_t message_type;
+    uint16_t message_length;
+    uint32_t teid; // tunnel_endpoint_identifier
+    uint32_t sequence_number;
+}__attribute__((packed));
 
-}
-
-int is_gtpv2_traffic(const unsigned char *packet, int length)
+int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans)
 {
+    *is_retrans = false;
     // Minimum size check for Ethernet + IP + UDP + GTPv2 header
         if (length < (int)(sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr) + sizeof(struct gtpv2_header))) {
             return 0;
@@ -58,15 +62,46 @@ int is_gtpv2_traffic(const unsigned char *packet, int length)
         }
 
         // Get GTPv2 header
-        struct gtpv2_header *gtp = (struct gtpv2_header *)(packet + sizeof(struct ethhdr) + ip_header_len + udp_header_len);
+           struct gtpv2_header *gtp = (struct gtpv2_header *)(packet + sizeof(struct ethhdr) + ip_header_len + udp_header_len);
 
-        printf("  Sequence Number: %u\n", ntohl(gtp->sequence_number));
+           // Parse and print GTPv2 header details
+           printf("=== GTPv2 Header Details ===\n");
 
-        // Basic GTPv2 validation
-        // Check version (should be 2 for GTPv2)
-        if ((gtp->flags & 0xE0) >> 5 != 2) {
-            return 0;
-        }
+           // Parse flags
+           uint8_t version = (gtp->flags >> 5) & 0x07;  // Bits 5-7: Version
+           uint8_t piggyback = (gtp->flags >> 4) & 0x01; // Bit 4: Piggybacking flag
+           uint8_t teid_flag = (gtp->flags >> 3) & 0x01; // Bit 3: TEID flag
+           uint8_t spare = gtp->flags & 0x07;            // Bits 0-2: Spare
+
+           printf("Flags:\n");
+           printf("  Version: %d\n", version);
+           printf("  Piggybacking Flag: %d\n", piggyback);
+           printf("  TEID Flag: %d\n", teid_flag);
+           printf("  Spare: %d\n", spare);
+           printf("  Raw Flags: 0x%02X\n", gtp->flags);
+
+           // Message Type
+           printf("Message Type: %d (0x%02X)\n", gtp->message_type, gtp->message_type);
+
+           // Message Length
+           uint16_t msg_len = ntohs(gtp->message_length);
+           printf("Message Length: %d bytes\n", msg_len);
+
+           // TEID (if present)
+           uint32_t teid = ntohl(gtp->teid);
+           printf("TEID: %u (0x%08X)\n", teid, teid);
+
+           // Sequence Number (24-bit value)
+           uint32_t seq_full = ntohl(gtp->sequence_number);
+           uint32_t sequence_number = seq_full & 0x00FFFFFF;  // Last 3 bytes
+           uint8_t spare2 = (seq_full >> 24) & 0xFF;         // First byte is spare
+           printf("Sequence Number: %u (0x%06X)\n", sequence_number, sequence_number);
+           printf("Sequence Number Spare: 0x%02X\n", spare2);
+           printf("Full Sequence Field: 0x%08X\n", seq_full);
+
+           printf("============================\n");
+
+
 
         return 1;
 }

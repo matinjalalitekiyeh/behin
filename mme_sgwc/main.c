@@ -33,18 +33,13 @@ int main() {
         }
 
         // Check if packet matches GTPv2 traffic
-        if (is_gtpv2_traffic(buffer, data_size)) {
+        bool is_retransmition = false;
+        if (is_gtpv2_traffic(buffer, data_size, &is_retransmition)) {
+
+            if (!is_retransmition) {
                 pcap_write_packet(buffer, (size_t)data_size);
+            }
 
-//            // Parse and print GTPv2 information
-//            struct ethhdr *eth = (struct ethhdr *)buffer;
-//            struct iphdr *ip = (struct iphdr *)(buffer + sizeof(struct ethhdr));
-//            int ip_header_len = ip->ihl * 4;
-//            struct udphdr *udp = (struct udphdr *)(buffer + sizeof(struct ethhdr) + ip_header_len);
-//            struct gtpv2_header *gtp = (struct gtpv2_header *)(buffer + sizeof(struct ethhdr) + ip_header_len + sizeof(struct udphdr));
-
-//            print_gtpv2_info(gtp, ip, udp);
-//            printf("Captured GTPv2 packet: %d bytes\n", data_size);
         }
     }
 

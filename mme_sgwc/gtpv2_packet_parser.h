@@ -18,16 +18,9 @@
 #define GTPV2_PORT 2123
 
 
-struct gtpv2_header {
-    uint8_t flags;
-    uint8_t message_type;
-    uint16_t message_length;
-    uint32_t teid;
-    uint32_t sequence_number;
-};
 
 
-int is_gtpv2_traffic(const unsigned char *packet, int length);
+int is_gtpv2_traffic(const unsigned char *packet, int length, bool *is_retrans);
 //void print_gtpv2_info(const struct gtpv2_header *gtp, const struct iphdr *ip, const struct udphdr *udp);
 
 #endif /* GTPV2_PACKET_PARSER_H */
