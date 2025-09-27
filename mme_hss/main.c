@@ -6,35 +6,29 @@
 
 #define OUTPUT_FILE "aaa.pcap"
 
-#define TARGET_DIAMETER_PORT 8585  // S1AP default port
-
-
 int main() {
-    sock_context_t *sock = (sock_context_t*)malloc(sizeof(sock_context_t));
+    sock_context_t *sock = NULL;
+    sock_res_t res = socket_context_create(&sock);
 
-    sock->buffer = (u8*)malloc(BUFFER_SIZE * sizeof(char));
-    pthread_mutex_init(&sock->lock, NULL);
+    if (SOCKET_SUCCESS != res) {
+        printf("Socket creation failed! (%d)", (int)res);
+        socket_context_destroy(sock);
+        exit(EXIT_FAILURE);
+    }
 
-//    int sock_raw;
     struct sockaddr saddr;
     socklen_t saddr_size = sizeof(saddr);
-//    unsigned char buffer[BUFFER_SIZE];
 
     pcap_init(OUTPUT_FILE);
 
-    sock->sockfd = socket_create_raw();
-    if (sock->sockfd < 0) {
+    res = socket_create_raw(sock);
+    if (SOCKET_SUCCESS != res) {
         pcap_close();
         exit(EXIT_FAILURE);
     }
 
-
-
-    socket_set_timeout(sock->sockfd, 1);
-
-
     while (1) {
-        sock->buffer_size = socket_receive(sock->sockfd, sock->buffer, BUFFER_SIZE, &saddr, &saddr_size);
+        sock->buffer_size = socket_receive(sock->sockfd, sock->buffer, SOCKET_MDL_MAX_BUFFER_SIZE, &saddr, &saddr_size);
         if (sock->buffer_size < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
             perror("Recvfrom error");
@@ -49,7 +43,7 @@ int main() {
         }
     }
 
-    socket_close(sock->sockfd);
+    socket_context_destroy(sock);
     pcap_close();
     return 0;
 }
