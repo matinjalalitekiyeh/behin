@@ -1,6 +1,10 @@
 #include "diameter_packet_parser.h"
 #include "pcap_file_initialize.h"
 
+//usage: sudo ./a.out --seperate -r 999990123456780~999990123456780
+//usage: sudo ./a.out -r 999990123456780~999990123456780
+//usage: sudo ./a.out -r 999990123456780~999990123456785
+
 int main(int argc, char *argv[]) {
     if (argc < 3) {
         return EXIT_FAILURE;
