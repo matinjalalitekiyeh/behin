@@ -72,9 +72,9 @@ add_subdirectory(configured)
 add_subdirectory(external)
 add_subdirectory(src)
 add_subdirectory(app)
-add_subdirectory(nas_trace)
+#add_subdirectory(nas_trace)
 add_subdirectory(mme_hss)
-add_subdirectory(mme_sgwc)
+#add_subdirectory(mme_sgwc)
 #add_subdirectory(trace)
 #if(ENABLE_TESTING)
 #    include(CTest)
@@ -91,6 +91,6 @@ install(
     RUNTIME DESTINATION bin)
 
 install(
-    TARGETS "LibBoost_sokcet_client_async" "LibSocket_mdl" "LibPcap_mdl"
+    TARGETS "LibBoost_sokcet_client_async" "LibSniff_sock" "LibPcap_mdl"
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib)

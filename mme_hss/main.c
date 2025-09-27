@@ -6,43 +6,42 @@
 
 #define OUTPUT_FILE "aaa.pcap"
 
-#define TARGET_DIAMETER_PORT 8585  // S1AP default port
-
-
 int main() {
-    int sock_raw;
-    struct sockaddr saddr;
-    socklen_t saddr_size = sizeof(saddr);
-    unsigned char buffer[BUFFER_SIZE];
+    sock_context_t *sock = NULL;
+    sock_res_t res = socket_context_create(&sock);
+
+    if (SOCKET_SUCCESS != res) {
+        printf("Socket creation failed! (%d)", (int)res);
+        socket_context_destroy(sock);
+        exit(EXIT_FAILURE);
+    }
 
     pcap_init(OUTPUT_FILE);
 
-    sock_raw = socket_create_raw();
-    if (sock_raw < 0) {
+    res = socket_create_raw(sock);
+    if (SOCKET_SUCCESS != res) {
         pcap_close();
         exit(EXIT_FAILURE);
     }
 
-    socket_set_timeout(sock_raw, 1);
-
-
     while (1) {
-        int data_size = socket_receive(sock_raw, buffer, BUFFER_SIZE, &saddr, &saddr_size);
-        if (data_size < 0) {
+        ssize_t len = 0;
+        res = socket_receive_packet(sock, &len);
+        if (SOCKET_SUCCESS != res) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
             perror("Recvfrom error");
             break;
         }
 
         bool is_retrans = false;
-        if (is_diam_packet(buffer, data_size, &is_retrans)) {
+        if (is_diam_packet(sock->buffer, (int)sock->buffer_size, &is_retrans)) {
             if (!is_retrans) {
-                pcap_write_packet(buffer, (size_t)data_size);
+                pcap_write_packet(sock->buffer, (size_t)sock->buffer_size);
             }
         }
     }
 
-    socket_close(sock_raw);
+    socket_context_destroy(sock);
     pcap_close();
     return 0;
 }
