@@ -91,6 +91,6 @@ install(
     RUNTIME DESTINATION bin)
 
 install(
-    TARGETS "LibBoost_sokcet_client_async" "LibSocket_mdl" "LibPcap_mdl"
+    TARGETS "LibBoost_sokcet_client_async" "LibSniff_sock" "LibPcap_mdl"
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib)

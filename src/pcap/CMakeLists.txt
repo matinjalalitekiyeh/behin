@@ -5,7 +5,7 @@ set(LIBRARY_INCLUDES "./" "${CMAKE_BINARY_DIR}/configured_files/include")
 add_library("LibPcap_mdl" STATIC ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})
 target_include_directories("LibPcap_mdl" PUBLIC ${LIBRARY_INCLUDES})
 #target_link_libraries(
-#    "LibSocket_mdl"
+#    "LibSniff_sock"
 #    PRIVATE nlohmann_json::nlohmann_json
 #            fmt::fmt
 #            spdlog::spdlog

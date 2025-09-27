@@ -13,7 +13,7 @@ target_link_libraries(
     "diameter"
     PRIVATE
             "LibUtilities"
-            "LibSocket_mdl"
+            "LibSniff_sock"
             "LibPcap_mdl"
 )
 

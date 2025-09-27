@@ -1,5 +1,18 @@
-#include "socket_mdl.h"
+#include "sniff_sock.h"
 
+/**
+ * lock_context() - Lock the socket context mutex
+ * @ctx: Socket context to lock
+ *
+ * Acquires the mutex lock for the socket context to ensure thread-safe
+ * operations. This function should be called before any context modification.
+ *
+ * Context: May block waiting for mutex acquisition
+ * Return:
+ *   - SOCKET_SUCCESS: Mutex locked successfully
+ *   - SOCKET_ERROR_INVALID_PARAM: Invalid context pointer
+ *   - SOCKET_ERROR_IO: Mutex operation failed
+ */
 static sock_res_t lock_context(sock_context_t *ctx) {
     if (!ctx) return SOCKET_ERROR_INVALID_PARAM;
 
@@ -9,6 +22,19 @@ static sock_res_t lock_context(sock_context_t *ctx) {
     return SOCKET_SUCCESS;
 }
 
+/**
+ * unlock_context() - Unlock the socket context mutex
+ * @ctx: Socket context to unlock
+ *
+ * Releases the mutex lock for the socket context. This function should be
+ * called after completing context modifications.
+ *
+ * Context: Safe to call from any context with valid lock
+ * Return:
+ *   - SOCKET_SUCCESS: Mutex unlocked successfully
+ *   - SOCKET_ERROR_INVALID_PARAM: Invalid context pointer
+ *   - SOCKET_ERROR_IO: Mutex operation failed
+ */
 static sock_res_t unlock_context(sock_context_t *ctx) {
     if (!ctx) return SOCKET_ERROR_INVALID_PARAM;
 
@@ -18,6 +44,16 @@ static sock_res_t unlock_context(sock_context_t *ctx) {
     return SOCKET_SUCCESS;
 }
 
+/**
+ * is_socket_ready() - Check if socket is initialized and ready for operations
+ * @ctx: Socket context to check
+ *
+ * Verifies that the socket context is valid and the socket descriptor
+ * is properly initialized (non-negative).
+ *
+ * Context: Can be called from any context, non-blocking
+ * Return: true if socket is ready, false otherwise
+ */
 static bool is_socket_ready(const sock_context_t *ctx) {
     return ctx && (ctx->sockfd >= 0);
 }

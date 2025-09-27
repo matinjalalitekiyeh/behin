@@ -34,7 +34,7 @@ int main() {
         }
 
         bool is_retrans = false;
-        if (is_diam_packet(sock->buffer, sock->buffer_size, &is_retrans)) {
+        if (is_diam_packet(sock->buffer, (int)sock->buffer_size, &is_retrans)) {
             if (!is_retrans) {
                 pcap_write_packet(sock->buffer, (size_t)sock->buffer_size);
             }

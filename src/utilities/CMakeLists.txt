@@ -10,7 +10,7 @@ set(LIBRARY_INCLUDES "./" "${CMAKE_BINARY_DIR}/configured_files/include")
 add_library("LibUtilities" STATIC ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})
 target_include_directories("LibUtilities" PUBLIC ${LIBRARY_INCLUDES})
 #target_link_libraries(
-#    "LibSocket_mdl"
+#    "LibSniff_sock"
 #    PRIVATE nlohmann_json::nlohmann_json
 #            fmt::fmt
 #            spdlog::spdlog

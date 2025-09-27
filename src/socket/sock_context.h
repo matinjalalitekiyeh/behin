@@ -70,7 +70,7 @@ typedef struct {
     pthread_mutex_t lock;
     int             sockfd;
     u32             timeout_sec;
-    u8              *buffer;
+    u8*             buffer;
     ssize_t         buffer_size;
     char            last_error[SOCKET_MDL_ERROR_MSG_LEN];
 } sock_context_t;

@@ -1,14 +1,14 @@
 set(LIBRARY_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/socket_mdl.c")
+    "${CMAKE_CURRENT_SOURCE_DIR}/sniff_sock.c")
 set(LIBRARY_HEADERS
-    "${CMAKE_CURRENT_SOURCE_DIR}/socket_mdl.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sniff_sock.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/sock_context.h")
 set(LIBRARY_INCLUDES "./" "${CMAKE_BINARY_DIR}/configured_files/include")
 
-add_library("LibSocket_mdl" STATIC ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})
-target_include_directories("LibSocket_mdl" PUBLIC ${LIBRARY_INCLUDES})
+add_library("LibSniff_sock" STATIC ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})
+target_include_directories("LibSniff_sock" PUBLIC ${LIBRARY_INCLUDES})
 #target_link_libraries(
-#    "LibSocket_mdl"
+#    "LibSniff_sock"
 #    PRIVATE nlohmann_json::nlohmann_json
 #            fmt::fmt
 #            spdlog::spdlog
@@ -17,7 +17,7 @@ target_include_directories("LibSocket_mdl" PUBLIC ${LIBRARY_INCLUDES})
 if(${ENABLE_WARNINGS})
     target_set_warnings(
         TARGET
-        "LibSocket_mdl"
+        "LibSniff_sock"
         ENABLE
         ${ENABLE_WARNINGS}
         AS_ERRORS
@@ -27,11 +27,11 @@ endif()
 if(${ENABLE_LTO})
     target_enable_lto(
         TARGET
-        "LibSocket_mdl"
+        "LibSniff_sock"
         ENABLE
         ON)
 endif()
 
 if(${ENABLE_CLANG_TIDY})
-    add_clang_tidy_to_target("LibSocket_mdl")
+    add_clang_tidy_to_target("LibSniff_sock")
 endif()
