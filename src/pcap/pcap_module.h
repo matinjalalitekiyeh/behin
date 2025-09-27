@@ -25,9 +25,9 @@ typedef struct pcaprec_hdr_s {
     uint32_t orig_len;
 } pcaprec_hdr_t;
 
-void pcap_init(const char* filename);
-void pcap_write_packet(const unsigned char *packet, size_t caplen);
-void pcap_write_packet_with_header(const unsigned char *packet, size_t caplen, pcaprec_hdr_t *header);
-void pcap_close(void);
+FILE *pcap_init(const char* filename);
+void pcap_write_packet(FILE *pcap_file, const unsigned char *packet, size_t caplen);
+void pcap_write_packet_with_header(FILE *pcap_file, const unsigned char *packet, size_t caplen, pcaprec_hdr_t *header);
+void pcap_close(FILE *pcap_file);
 
 #endif // PCAP_MODULE_H
