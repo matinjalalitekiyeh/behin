@@ -1,9 +1,9 @@
 #include "pcap_module.h"
+#include <malloc.h>
+//static FILE *pcap_file = NULL;
 
-static FILE *pcap_file = NULL;
-
-void pcap_init(const char* filename) {
-    pcap_file = fopen(filename, "wb");
+FILE *pcap_init(const char* filename) {
+    FILE *pcap_file = fopen(filename, "wb");
     if (!pcap_file) {
         perror("Failed to create pcap file");
     }
@@ -18,9 +18,10 @@ void pcap_init(const char* filename) {
         .network = 1 /* eth */
     };
     fwrite(&pcap_hdr, sizeof(pcap_hdr_t), 1, pcap_file);
+    return pcap_file;
 }
 
-void pcap_write_packet(const unsigned char *packet, size_t caplen) {
+void pcap_write_packet(FILE *pcap_file, const unsigned char *packet, size_t caplen) {
     if (!pcap_file) return;
 
     struct timeval tv;
@@ -38,7 +39,7 @@ void pcap_write_packet(const unsigned char *packet, size_t caplen) {
     fflush(pcap_file);
 }
 
-void pcap_write_packet_with_header(const unsigned char *packet, size_t caplen, pcaprec_hdr_t* header) {
+void pcap_write_packet_with_header(FILE *pcap_file, const unsigned char *packet, size_t caplen, pcaprec_hdr_t* header) {
     if (!pcap_file) return;
 
     fwrite(header, sizeof(pcaprec_hdr_t), 1, pcap_file);
@@ -46,7 +47,7 @@ void pcap_write_packet_with_header(const unsigned char *packet, size_t caplen, p
     fflush(pcap_file);
 }
 
-void pcap_close() {
+void pcap_close(FILE *pcap_file) {
     if (pcap_file) {
         fclose(pcap_file);
         pcap_file = NULL;
