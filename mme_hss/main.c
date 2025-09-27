@@ -34,6 +34,11 @@ int main(int argc, char *argv[]) {
                 continue;
             user->file = pcap_init(user->pcap_file_name);
         }
+    } else {
+        user_t *user = get_users(0);
+        snprintf(user->pcap_file_name, sizeof(user->pcap_file_name),
+                     "%s.pcap", user->prefix);
+        user->file = pcap_init(user->pcap_file_name);
     }
 
 
@@ -51,6 +56,8 @@ int main(int argc, char *argv[]) {
         for (size_t i = 0; i < user_cnt; i++) {
             const user_t *user = get_users((int)i);
             if (NULL == user)
+                continue;
+            if (NULL == user->file)
                 continue;
             pcap_close(user->file);
         }
@@ -73,6 +80,8 @@ int main(int argc, char *argv[]) {
                     const user_t *user = get_users((int)i);
                     if (NULL == user)
                         continue;
+                    if (NULL == user->file)
+                        continue;
                     pcap_write_packet(user->file, sock->buffer, (size_t)sock->buffer_size);
                 }
             }
@@ -80,10 +89,11 @@ int main(int argc, char *argv[]) {
     }
 
     socket_context_destroy(sock);
-//    pcap_close();
     for (size_t i = 0; i < user_cnt; i++) {
         const user_t *user = get_users((int)i);
         if (NULL == user)
+            continue;
+        if (NULL == user->file)
             continue;
         pcap_close(user->file);
     }
