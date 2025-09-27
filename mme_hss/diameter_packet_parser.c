@@ -8,10 +8,14 @@
 #define OGS_DIAM_S6A_CMD_CODE_INSERT_SUBSCRIBER_DATA        319
 #define OGS_DIAM_S6A_CMD_CODE_PURGE_UE                      321
 
-static uint32_t s_hop_id = 0x00;
-static uint32_t s_end_id = 0x00;
+
+static uint32_t s_hop_id[1000];
+static uint32_t s_end_id[1000];
+static uint32_t s_user_cnt = 0;
 
 #define IMSI_CAPTURE "999990123456780"
+
+static bool is_cap = false;
 
 typedef struct {
     uint8_t rsv4 : 1;
@@ -30,32 +34,17 @@ typedef struct diam_avp {
     uint32_t vendor_id;
     uint32_t length;
     uint8_t flags;
-    uint8_t *data;          // Add this to store AVP data
-    uint32_t data_length;   // Add this to store data length
+    uint8_t *data;
+    uint32_t data_length;
     struct diam_avp *next;
 } diam_avp_t;
 
-
-static void print_hex_data(const uint8_t *data, uint32_t length, const char *prefix) {
-//    printf("%s", prefix);
-//    for (uint32_t i = 0; i < length; i++) {
-//        printf("%02X ", data[i]);
-//        if ((i + 1) % 16 == 0) printf("\n%s", prefix);
-//    }
-//    printf("\n");
-}
-
-
-// Helper function to read AVP length from 3 bytes
 static uint32_t read_avp_length(const uint8_t *length_bytes) {
     return (length_bytes[0] << 16) | (length_bytes[1] << 8) | length_bytes[2];
 }
-
-// Helper function to calculate padding
 static int calculate_padding(uint32_t length) {
     return (4 - (length % 4)) % 4;
 }
-
 static diam_avp_t* parse_avps(const uint8_t *data, int data_length) {
     const uint8_t *ptr = data;
     int remaining_length = data_length;
@@ -175,7 +164,6 @@ static diam_avp_t* parse_avps(const uint8_t *data, int data_length) {
 
     return parent_list;
 }
-
 static void free_avp_list(diam_avp_t *avp_list) {
     while (avp_list != NULL) {
         diam_avp_t *next = avp_list->next;
@@ -193,51 +181,24 @@ static void print_parent_avps(diam_avp_t *parent_avps, uint32_t end_id, uint32_t
         return;
     }
 
-    printf("\nParent AVPs found:\n");
-    printf("==================\n");
-
     diam_avp_t *current = parent_avps;
-    int count = 0;
-
     while (current != NULL) {
-//        printf("Parent AVP %d:\n", ++count);
-//        printf("  Code: 0x%08X (%u)\n", current->avp_code, current->avp_code);
-//        printf("  Vendor-ID: 0x%08X (%u)\n", current->vendor_id, current->vendor_id);
-//        printf("  Length: %u bytes\n", current->length);
-//        printf("  Flags: 0x%02X", current->flags);
-//        if (current->flags & 0x80) printf(" (Vendor-specific)");
-//        if (current->flags & 0x40) printf(" (Mandatory)");
-//        if (current->flags & 0x20) printf(" (Protected)");
-//        printf("\n");
-//        printf("  Data Length: %u bytes\n", current->data_length);
-
-        // Check for AVP code 0x00000001 and extract its content as string
         if (current->avp_code == 0x00000001) {
-            printf("  CONTENT of AVP 0x00000001:\n");
-
-            // Create a null-terminated string from the data
             char *content_str = malloc(current->data_length + 1);
             if (content_str != NULL) {
                 memcpy(content_str, current->data, current->data_length);
-                content_str[current->data_length] = '\0'; // Null-terminate
+                content_str[current->data_length] = '\0';
 
-                printf("    As string: %s\n", content_str);
-
-                // Now you can use content_str in your code for comparison
                 if (strcmp(content_str, "999990123456780") == 0) {
-                    printf("    MATCH: This is the expected IMSI!\n");
-                    s_end_id = end_id;
-                    s_hop_id  = hop_id;
+                    is_cap = true;
+                    s_end_id[s_user_cnt] = end_id;
+                    s_hop_id[s_user_cnt] = hop_id;
+                    s_user_cnt++;
                 }
-
-                // Or convert to long long if needed
-                long long numeric_value = atoll(content_str);
-                printf("    As long long: %lld\n", numeric_value);
 
                 free(content_str);
             }
         }
-        printf("\n");
 
         current = current->next;
     }
@@ -248,83 +209,18 @@ static void parse_diam_message(const uint8_t *diam_data, int diam_length) {
         return;
     }
 
-    // Parse header fields directly from byte array
-    uint8_t version = diam_data[0];
-    uint32_t length = (diam_data[1] << 16) | (diam_data[2] << 8) | diam_data[3];
-    flags_t* flags = (flags_t*)&diam_data[4];
-    uint32_t cmd_code = (diam_data[5] << 16) | (diam_data[6] << 8) | diam_data[7];
     uint32_t app_id = (diam_data[8] << 24) | (diam_data[9] << 16) | (diam_data[10] << 8) | diam_data[11];
     uint32_t hop_id = (diam_data[12] << 24) | (diam_data[13] << 16) | (diam_data[14] << 8) | diam_data[15];
     uint32_t end_id = (diam_data[16] << 24) | (diam_data[17] << 16) | (diam_data[18] << 8) | diam_data[19];
 
-
-    if (s_hop_id == hop_id && s_end_id == end_id) {
-        printf("capture this part\n");
+    for (uint32_t i = 0; i < s_user_cnt; i++) {
+        if (s_hop_id[i] == hop_id && s_end_id[i] == end_id) {
+            is_cap = true;
+        }
     }
-
-//    printf("DIAMETER Message Header:\n");
-//    printf("  Version: %u\n", version);
-//    printf("  Length: %u bytes\n", length);
-//    printf("  Flags: R=%d, P=%d, E=%d, T=%d\n",
-//           flags->req ? 1 : 0, flags->prox ? 1 : 0,
-//           flags->error ? 1 : 0, flags->retransmit ? 1 : 0);
-//    printf("  Command Code: %u\n", cmd_code);
-//    printf("  Application ID: 0x%08X\n", app_id);
-//    printf("  Hop-by-Hop ID: 0x%08X\n", hop_id);
-//    printf("  End-to-End ID: 0x%08X\n", end_id);
 
     /* s6a/s6d */
     if (0x1000023 == app_id) {
-        const char *cmd_name = "UNKNOWN";
-
-        switch (cmd_code) {
-        case OGS_DIAM_S6A_CMD_CODE_UPDATE_LOCATION: {
-            cmd_name = "UPDATE_LOCATION";
-            if (flags->req) {
-                printf("REQUEST OGS_DIAM_S6A_CMD_CODE_UPDATE_LOCATION\n");
-            } else {
-                printf("RESPONSE OGS_DIAM_S6A_CMD_CODE_UPDATE_LOCATION\n");
-            }
-        } break;
-        case OGS_DIAM_S6A_CMD_CODE_CANCEL_LOCATION: {
-            cmd_name = "CANCEL_LOCATION";
-            if (flags->req) {
-                printf("REQUEST OGS_DIAM_S6A_CMD_CODE_CANCEL_LOCATION\n");
-            } else {
-                printf("RESPONSE OGS_DIAM_S6A_CMD_CODE_CANCEL_LOCATION\n");
-            }
-        } break;
-        case OGS_DIAM_S6A_CMD_CODE_AUTHENTICATION_INFORMATION: {
-            cmd_name = "AUTHENTICATION_INFORMATION";
-            if (flags->req) {
-                printf("REQUEST OGS_DIAM_S6A_CMD_CODE_AUTHENTICATION_INFORMATION\n");
-            } else {
-                printf("RESPONSE OGS_DIAM_S6A_CMD_CODE_AUTHENTICATION_INFORMATION\n");
-            }
-        } break;
-        case OGS_DIAM_S6A_CMD_CODE_INSERT_SUBSCRIBER_DATA: {
-            cmd_name = "INSERT_SUBSCRIBER_DATA";
-            if (flags->req) {
-                printf("REQUEST OGS_DIAM_S6A_CMD_CODE_INSERT_SUBSCRIBER_DATA\n");
-            } else {
-                printf("RESPONSE OGS_DIAM_S6A_CMD_CODE_INSERT_SUBSCRIBER_DATA\n");
-            }
-        } break;
-        case OGS_DIAM_S6A_CMD_CODE_PURGE_UE: {
-            cmd_name = "PURGE_UE";
-            if (flags->req) {
-                printf("REQUEST OGS_DIAM_S6A_CMD_CODE_PURGE_UE\n");
-            } else {
-                printf("RESPONSE OGS_DIAM_S6A_CMD_CODE_PURGE_UE\n");
-            }
-        } break;
-        default:
-            printf("UNKNOWN COMMAND CODE: %u\n", cmd_code);
-            break;
-        }
-
-        printf("Processing S6A/S6D command: %s\n", cmd_name);
-
         // Parse AVPs in the message body
         int avp_data_length = diam_length - 20;
         if (avp_data_length > 0) {
@@ -332,14 +228,13 @@ static void parse_diam_message(const uint8_t *diam_data, int diam_length) {
             print_parent_avps(parent_avps, end_id, hop_id);
             free_avp_list(parent_avps);
         }
-    } else {
-        printf("Not an S6A/S6D message (Application ID: 0x%08X)\n", app_id);
-    }
+    } else { }
 }
 
 int is_diam_packet(const unsigned char *packet, int length, bool *is_retrans)
 {
     *is_retrans = false;
+    is_cap = false;
 
     // Simple array to track recent messages (circular buffer)
 #define MAX_RECENT_MSGS 100
@@ -467,5 +362,5 @@ int is_diam_packet(const unsigned char *packet, int length, bool *is_retrans)
         }
     }
 
-    return has_diam ? 1 : 0;
+    return has_diam&&is_cap ? 1 : 0;
 }
