@@ -8,8 +8,10 @@
 #define OGS_DIAM_S6A_CMD_CODE_INSERT_SUBSCRIBER_DATA        319
 #define OGS_DIAM_S6A_CMD_CODE_PURGE_UE                      321
 
-static uint32_t s_hop_id = 0x00;
-static uint32_t s_end_id = 0x00;
+
+static uint32_t s_hop_id[1000];
+static uint32_t s_end_id[1000];
+static uint32_t s_user_cnt = 0;
 
 #define IMSI_CAPTURE "999990123456780"
 
@@ -32,21 +34,17 @@ typedef struct diam_avp {
     uint32_t vendor_id;
     uint32_t length;
     uint8_t flags;
-    uint8_t *data;          // Add this to store AVP data
-    uint32_t data_length;   // Add this to store data length
+    uint8_t *data;
+    uint32_t data_length;
     struct diam_avp *next;
 } diam_avp_t;
 
-// Helper function to read AVP length from 3 bytes
 static uint32_t read_avp_length(const uint8_t *length_bytes) {
     return (length_bytes[0] << 16) | (length_bytes[1] << 8) | length_bytes[2];
 }
-
-// Helper function to calculate padding
 static int calculate_padding(uint32_t length) {
     return (4 - (length % 4)) % 4;
 }
-
 static diam_avp_t* parse_avps(const uint8_t *data, int data_length) {
     const uint8_t *ptr = data;
     int remaining_length = data_length;
@@ -166,7 +164,6 @@ static diam_avp_t* parse_avps(const uint8_t *data, int data_length) {
 
     return parent_list;
 }
-
 static void free_avp_list(diam_avp_t *avp_list) {
     while (avp_list != NULL) {
         diam_avp_t *next = avp_list->next;
@@ -184,39 +181,24 @@ static void print_parent_avps(diam_avp_t *parent_avps, uint32_t end_id, uint32_t
         return;
     }
 
-//    printf("\nParent AVPs found:\n");
-//    printf("==================\n");
-
     diam_avp_t *current = parent_avps;
     while (current != NULL) {
-        // Check for AVP code 0x00000001 and extract its content as string
         if (current->avp_code == 0x00000001) {
-//            printf("  CONTENT of AVP 0x00000001:\n");
-
-            // Create a null-terminated string from the data
             char *content_str = malloc(current->data_length + 1);
             if (content_str != NULL) {
                 memcpy(content_str, current->data, current->data_length);
-                content_str[current->data_length] = '\0'; // Null-terminate
+                content_str[current->data_length] = '\0';
 
-                printf("IMSI As string: %s\n", content_str);
-
-                // Now you can use content_str in your code for comparison
                 if (strcmp(content_str, "999990123456780") == 0) {
-//                    printf("MATCH: This is the expected IMSI!\n");
                     is_cap = true;
-                    s_end_id = end_id;
-                    s_hop_id  = hop_id;
+                    s_end_id[s_user_cnt] = end_id;
+                    s_hop_id[s_user_cnt] = hop_id;
+                    s_user_cnt++;
                 }
-
-                // Or convert to long long if needed
-                long long numeric_value = atoll(content_str);
-//                printf("    As long long: %lld\n", numeric_value);
 
                 free(content_str);
             }
         }
-//        printf("\n");
 
         current = current->next;
     }
@@ -227,21 +209,14 @@ static void parse_diam_message(const uint8_t *diam_data, int diam_length) {
         return;
     }
 
-    // Parse header fields directly from byte array
-//    uint8_t version = diam_data[0];
-//    uint32_t length = (diam_data[1] << 16) | (diam_data[2] << 8) | diam_data[3];
-//    flags_t* flags = (flags_t*)&diam_data[4];
-//    uint32_t cmd_code = (diam_data[5] << 16) | (diam_data[6] << 8) | diam_data[7];
     uint32_t app_id = (diam_data[8] << 24) | (diam_data[9] << 16) | (diam_data[10] << 8) | diam_data[11];
     uint32_t hop_id = (diam_data[12] << 24) | (diam_data[13] << 16) | (diam_data[14] << 8) | diam_data[15];
     uint32_t end_id = (diam_data[16] << 24) | (diam_data[17] << 16) | (diam_data[18] << 8) | diam_data[19];
 
-
-//    printf("hop : 0x%4X -- end : 0x%4X\n", hop_id, end_id);
-
-    if (s_hop_id == hop_id && s_end_id == end_id) {
-//        printf("capture this part\n");
-        is_cap = true;
+    for (uint32_t i = 0; i < s_user_cnt; i++) {
+        if (s_hop_id[i] == hop_id && s_end_id[i] == end_id) {
+            is_cap = true;
+        }
     }
 
     /* s6a/s6d */
@@ -253,9 +228,7 @@ static void parse_diam_message(const uint8_t *diam_data, int diam_length) {
             print_parent_avps(parent_avps, end_id, hop_id);
             free_avp_list(parent_avps);
         }
-    } else {
-//        printf("Not an S6A/S6D message (Application ID: 0x%08X)\n", app_id);
-    }
+    } else { }
 }
 
 int is_diam_packet(const unsigned char *packet, int length, bool *is_retrans)
