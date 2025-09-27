@@ -1,5 +1,8 @@
-set(LIBRARY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/socket_mdl.c")
-set(LIBRARY_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/socket_mdl.h")
+set(LIBRARY_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/socket_mdl.c")
+set(LIBRARY_HEADERS
+    "${CMAKE_CURRENT_SOURCE_DIR}/socket_mdl.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sock_context.h")
 set(LIBRARY_INCLUDES "./" "${CMAKE_BINARY_DIR}/configured_files/include")
 
 add_library("LibSocket_mdl" STATIC ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})

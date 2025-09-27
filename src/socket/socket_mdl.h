@@ -1,80 +1,7 @@
 #ifndef SOCKET_MODULE_H
 #define SOCKET_MODULE_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <signal.h>
-#include <stdatomic.h>
-#include <stdbool.h>
-#include <errno.h>
-#include <time.h>
-#include <sys/time.h>
-#include <stdarg.h>
-
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <netinet/tcp.h>
-#include <netinet/udp.h>
-#include <net/ethernet.h>
-#include <net/if.h>
-#include <arpa/inet.h>
-#include <pthread.h>
-#include <linux/if_packet.h>
-
-//#define BUFFER_SIZE 65536
-#define SOCKET_MDL_ERROR_MSG_LEN      256
-#define SOCKET_MDL_MAX_BUFFER_SIZE    65536
-#define SOCKET_MDL_DEFAULT_TIMEOUT    1
-#define SOCKET_MDL_ERROR_MSG_LEN 256
-
-typedef uint8_t   u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-/**
- * enum sock_res_t - Socket operation result codes
- * @SOCKET_SUCCESS: operation completed successfully
- * @SOCKET_ERROR_INVALID_PARAM: invalid parameter passed
- * @SOCKET_ERROR_MEMORY: memory allocation failure
- * @SOCKET_ERROR_IO: I/O operation failure
- * @SOCKET_ERROR_TIMEOUT: operation timed out
- * @SOCKET_ERROR_INTERNAL: internal error
- *
- * Return codes for socket module functions.
- */
-typedef enum {
-    SOCKET_SUCCESS = 0,
-    SOCKET_ERROR_INVALID_PARAM = -1,
-    SOCKET_ERROR_MEMORY = -2,
-    SOCKET_ERROR_IO = -3,
-    SOCKET_ERROR_TIMEOUT = -4,
-    SOCKET_ERROR_NOT_READY = -5,
-} sock_res_t;
-
-/**
- * struct sock_context_t - Socket operation context
- * @lock: mutex for thread synchronization
- * @buffer: I/O buffer for socket operations
- * @buffer_size: size of I/O buffer
- * @sockfd: socket file descriptor (-1 if invalid)
- * @timeout_sec: operation timeout in seconds
- * @last_error: buffer for last error message
- *
- * Context for managing socket operations with thread safety and error handling.
- */
-typedef struct {
-    pthread_mutex_t lock;
-    int             sockfd;
-    u32             timeout_sec;
-    u8              *buffer;
-    ssize_t         buffer_size;
-    char            last_error[SOCKET_MDL_ERROR_MSG_LEN];
-} sock_context_t;
+#include "sock_context.h"
 
 /**
  * socket_context_create - Create socket context structure
@@ -96,22 +23,49 @@ sock_res_t socket_context_create(sock_context_t **ctx);
  */
 void socket_context_destroy(sock_context_t *ctx);
 
-
+/**
+ * socket_create_raw() - Create a raw socket for packet capture
+ * @ctx: Socket context containing configuration parameters
+ *
+ * This function creates a raw socket at the packet level (AF_PACKET) capable
+ * of capturing all Ethernet frames (ETH_P_ALL). The socket is configured with
+ * a receive timeout and optional promiscuous mode for comprehensive network
+ * monitoring.
+ *
+ * The function handles proper resource cleanup by closing any existing socket
+ * before creating a new one. Context locking ensures thread-safe operation
+ * during socket configuration.
+ *
+ * Context: May sleep due to mutex operations. Should not be called from
+ *          interrupt context.
+ * Return:
+ *   - SOCKET_SUCCESS: Socket created and configured successfully
+ *   - SOCKET_ERROR_INVALID_PARAM: Invalid context pointer
+ *   - SOCKET_ERROR_IO: Socket creation or configuration failed
+ *   - Other socket error codes from lock_context()
+ */
 sock_res_t socket_create_raw(sock_context_t *ctx);
 
-
-
-
-
-
-
-
-
-
-// Socket functions
-//int socket_create_raw();
-//void socket_set_timeout(int sockfd, int seconds);
-int socket_receive(int sockfd, unsigned char *buffer, int buffer_size, struct sockaddr *saddr, socklen_t *saddr_size);
-//void socket_close(int sockfd);
+/**
+ * socket_receive_packet() - Receive a packet from the raw socket
+ * @ctx: Socket context with active raw socket
+ * @data_len: Output parameter for received data length
+ *
+ * Receives a single packet from the raw socket without holding the context
+ * lock, allowing for concurrent socket shutdown operations. Handles various
+ * error conditions including timeouts and interruptions.
+ *
+ * The function checks socket readiness before attempting reception and
+ * provides detailed error reporting for different failure scenarios.
+ *
+ * Context: Does not lock the context, safe for concurrent shutdown
+ * Return:
+ *   - SOCKET_SUCCESS: Packet received successfully, @data_len contains size
+ *   - SOCKET_ERROR_INVALID_PARAM: Invalid parameters
+ *   - SOCKET_ERROR_NOT_READY: Socket not properly initialized
+ *   - SOCKET_ERROR_TIMEOUT: Receive operation timed out
+ *   - SOCKET_ERROR_IO: I/O error or signal interruption
+ */
+sock_res_t socket_receive_packet(sock_context_t *ctx, ssize_t *data_len);
 
 #endif // SOCKET_MODULE_H

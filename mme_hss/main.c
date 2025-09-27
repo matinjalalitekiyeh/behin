@@ -16,9 +16,6 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    struct sockaddr saddr;
-    socklen_t saddr_size = sizeof(saddr);
-
     pcap_init(OUTPUT_FILE);
 
     res = socket_create_raw(sock);
@@ -28,8 +25,9 @@ int main() {
     }
 
     while (1) {
-        sock->buffer_size = socket_receive(sock->sockfd, sock->buffer, SOCKET_MDL_MAX_BUFFER_SIZE, &saddr, &saddr_size);
-        if (sock->buffer_size < 0) {
+        ssize_t len = 0;
+        res = socket_receive_packet(sock, &len);
+        if (SOCKET_SUCCESS != res) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
             perror("Recvfrom error");
             break;

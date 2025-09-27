@@ -1,33 +1,4 @@
 #include "socket_mdl.h"
-//#include <cstdio>
-//#include <errno.h>
-#include <unistd.h>
-
-//int socket_create_raw() {
-//    int sock_raw = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-//    if (sock_raw < 0) {
-//        printf("Socket creation failed");
-//        return -1;
-//    }
-//    return sock_raw;
-//}
-
-//void socket_set_timeout(int sockfd, int seconds) {
-//    struct timeval tv;
-//    tv.tv_sec = seconds;
-//    tv.tv_usec = 0;
-//    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-//}
-
-int socket_receive(int sockfd, unsigned char *buffer, int buffer_size, struct sockaddr *saddr, socklen_t *saddr_size) {
-    return recvfrom(sockfd, buffer, buffer_size, 0, saddr, saddr_size);
-}
-
-//void socket_close(int sockfd) {
-//    if (sockfd >= 0) {
-//        close(sockfd);
-//    }
-//}
 
 static sock_res_t lock_context(sock_context_t *ctx) {
     if (!ctx) return SOCKET_ERROR_INVALID_PARAM;
@@ -48,7 +19,7 @@ static sock_res_t unlock_context(sock_context_t *ctx) {
 }
 
 static bool is_socket_ready(const sock_context_t *ctx) {
-    return ctx && (ctx->sockfd >= 0); /*todo:matin:: shutdown_Req*/
+    return ctx && (ctx->sockfd >= 0);
 }
 
 sock_res_t socket_context_create(sock_context_t **ctx)
@@ -157,25 +128,37 @@ sock_res_t socket_create_raw(sock_context_t *ctx)
         goto unlock;
     }
 
-    /* Enable promiscuous mode for better capture */
-//#ifdef PACKET_MR_PROMISC
-//    struct packet_mreq mreq;
-//    memset(&mreq, 0, sizeof(mreq));
-//    mreq.mr_type = PACKET_MR_PROMISC;
-//    mreq.mr_ifindex = 0; /* All interfaces */
-
-//    if (setsockopt(ctx->sockfd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
-//        printf("Failed to set promiscuous mode: %s", strerror(errno));
-//    }
-//#else
-//    LOG_WARN("Promiscuous mode not supported on this system");
-//#endif
-
-
 unlock:
     unlock_context(ctx);
     return result;
 }
 
+sock_res_t socket_receive_packet(sock_context_t *ctx, ssize_t *data_len)
+{
+    if (!ctx || !data_len) {
+        return SOCKET_ERROR_INVALID_PARAM;
+    }
 
+    if (!is_socket_ready(ctx)) {
+        return SOCKET_ERROR_NOT_READY;
+    }
 
+    /* Don't lock during recv to allow concurrent shutdown */
+    ssize_t ret = recv(ctx->sockfd, ctx->buffer, (size_t)ctx->buffer_size, 0);
+
+    if (ret < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return SOCKET_ERROR_TIMEOUT;
+        }
+        if (errno == EINTR) {
+            return SOCKET_ERROR_IO; /* Interrupted by signal */
+        }
+
+        printf("Receive error: %s", strerror(errno));
+        return SOCKET_ERROR_IO;
+    }
+
+    *data_len = ret;
+
+    return SOCKET_SUCCESS;
+}
