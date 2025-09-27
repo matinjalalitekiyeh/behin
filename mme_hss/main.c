@@ -1,11 +1,4 @@
-#include <stdio.h>
-#include <errno.h>
-
-#include <stdlib.h>
 #include "diameter_packet_parser.h"
-
-#define OUTPUT_FILE "aaa.pcap"
-
 #include "pcap_file_initialize.h"
 
 int main(int argc, char *argv[]) {
