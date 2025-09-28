@@ -12,38 +12,59 @@ struct gtpv2_header {
 struct gtpv2_ie {
     uint16_t type;
     uint16_t length;
-    uint8_t value[0];
+    uint8_t *value;
 } __attribute__((packed));
 
-void parse_all_ies_recursive(const uint8_t *data, int length, int depth) {
-    int offset = 0;
+void parse_all_ies_recursive(const uint8_t *data, int length) {
 
-    while (offset + 4 <= length) {
-        struct gtpv2_ie *ie = (struct gtpv2_ie *)(data + offset);
+    printf("Total IEs length: %d\n", length);
 
-        // Read as little-endian
-        uint16_t ie_type = ((uint8_t*)&ie->type)[0] | (((uint8_t*)&ie->type)[1] << 8);
-        uint16_t ie_length = ((uint8_t*)&ie->length)[0] | (((uint8_t*)&ie->length)[1] << 8);
+       const uint8_t *current = data;
+       const uint8_t *end = data + length;
 
-        // Print IE type with indentation
-        for (int i = 0; i < depth; i++) {
-            printf("  ");
-        }
-        printf("IE: %d\n", ie_type);
+       while (current < end) {
+           // Check if we have enough data for IE header (4 bytes: 1 type + 2 length + 1 spare)
+           if (current + 4 > end) {
+               printf("Not enough data for IE header. Remaining: %ld bytes\n", (long)(end - current));
+               break;
+           }
 
-        // Recursively parse container IEs
-        if (ie_length > 0 && offset + 4 + ie_length <= length) {
-            parse_all_ies_recursive(ie->value, ie_length, depth + 1);
-        }
+           // Parse IE header - GTPv2 IE format: 1 byte type, 2 bytes length, 1 byte spare
+           uint8_t ie_type = current[0];
+           uint16_t ie_length = (current[1] << 8) | current[2];
+           // current[3] is spare byte (usually 0)
 
-        // Move to next IE
-        offset += 4 + ie_length;
+           printf("IE Type: 0x%02X, Length: %d", ie_type, ie_length);
 
-        // Align to 4-byte boundary
-        while (offset % 4 != 0 && offset < length) {
-            offset++;
-        }
-    }
+           // Check if we have enough data for the IE value
+           if (current + 4 + ie_length > end) {
+               printf(" - INCOMPLETE (needs %d, has %ld)\n", ie_length, (long)(end - current - 4));
+               break;
+           }
+
+           // Create IE structure
+           struct gtpv2_ie ie;
+           ie.type = ie_type;
+           ie.length = ie_length;
+           ie.value = (uint8_t *)(current + 4);
+
+           printf(" - Value pointer: %p\n", (void*)ie.value);
+
+           // Print first few bytes of value
+           if (ie.length > 0) {
+               printf("  First few bytes: ");
+               for (int i = 0; i < (ie.length < 8 ? ie.length : 8); i++) {
+                   printf("%02X ", ie.value[i]);
+               }
+               printf("\n");
+           }
+
+           // Move to next IE (4 byte header + IE value length)
+           current += 4 + ie_length;
+       }
+
+       printf("Parsed %ld bytes out of %d total\n", (long)(current - data), length);
+
 }
 
 int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans) {
@@ -108,22 +129,24 @@ int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans) 
     uint8_t teid_flag = (gtp->flags >> 3) & 0x01;
 
     // Message Type
-    printf("=== GTPv2 Message ===\n");
+    printf("=== GTPv2 Message === ");
     printf("Message Type: %d (0x%02X)\n", gtp->message_type, gtp->message_type);
 
     // Message Length
     uint16_t msg_len = ntohs(gtp->message_length);
-    printf("Message Length: %d bytes\n", msg_len);
+//    printf("Message Length: %d bytes\n", msg_len);
 
     // Calculate available data for IEs
     int gtp_header_size = sizeof(struct gtpv2_header);
     int ies_length = udp_payload_len - gtp_header_size;
 
+
     if (ies_length > 0) {
+//        printf("len: %d\n", msg_len);
         const unsigned char *ies_data = (const unsigned char *)(packet + sizeof(struct ethhdr) + ip_header_len + udp_header_len + gtp_header_size);
 
-        printf("=== Information Elements ===\n");
-        parse_all_ies_recursive(ies_data, ies_length, 0);
+//        printf("=== Information Elements ===\n");
+        parse_all_ies_recursive(ies_data, ies_length);
     }
 
     printf("============================\n");
