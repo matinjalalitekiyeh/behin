@@ -190,10 +190,13 @@ static void print_parent_avps(diam_avp_t *parent_avps, uint32_t end_id, uint32_t
                 content_str[current->data_length] = '\0';
 
                 if (strcmp(content_str, "999990123456780") == 0) {
+                    printf("match\n");
                     is_cap = true;
                     s_end_id[s_user_cnt] = end_id;
                     s_hop_id[s_user_cnt] = hop_id;
                     s_user_cnt++;
+                } else {
+                    printf("not match\n");
                 }
 
                 free(content_str);

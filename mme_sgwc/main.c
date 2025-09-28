@@ -1,49 +1,98 @@
-#include <stdio.h>
-#include <errno.h>
-
-#include <stdlib.h>
 #include "gtpv2_packet_parser.h"
+#include "pcap_file_initialize.h"
 
-#define OUTPUT_FILE "gtpv2.pcap"
+//usage: sudo ./a.out --seperate -r 999990123456780~999990123456780
+//usage: sudo ./a.out -r 999990123456780~999990123456780
+//usage: sudo ./a.out -r 999990123456780~999990123456785
+
+int main(int argc, char *argv[]) {
+    if (argc < 3) {
+        return EXIT_FAILURE;
+    }
+
+    if (!parse_range_from_args(argc, argv)) {
+        return EXIT_FAILURE;
+    }
+
+    size_t user_cnt = get_user_count();
+    for (size_t i = 0; i < user_cnt; i++) {
+        const user_t *user = get_users((int)i);
+        if (NULL == user)
+            continue;
+        printf("mtn User %zu: IMSI=%llu, File=%s\n",
+               i, user->user_imsi, user->pcap_file_name);
+    }
+
+    bool is_seperate_pcap_file = is_seperate_user();
+    if (is_seperate_pcap_file) {
+        for (size_t i = 0; i < user_cnt; i++) {
+            user_t *user = get_users((int)i);
+            if (NULL == user)
+                continue;
+            user->file = pcap_init(user->pcap_file_name);
+        }
+    } else {
+        user_t *user = get_users(0);
+        snprintf(user->pcap_file_name, sizeof(user->pcap_file_name),
+                     "%s.pcap", user->prefix);
+        user->file = pcap_init(user->pcap_file_name);
+    }
 
 
-int main() {
-    int sock_raw;
-    struct sockaddr saddr;
-    socklen_t saddr_size = sizeof(saddr);
-    unsigned char buffer[BUFFER_SIZE];
+    sock_context_t *sock = NULL;
+    sock_res_t res = socket_context_create(&sock);
 
-    pcap_init(OUTPUT_FILE);
-
-    sock_raw = socket_create_raw();
-    if (sock_raw < 0) {
-        pcap_close();
+    if (SOCKET_SUCCESS != res) {
+        printf("Socket creation failed! (%d)", (int)res);
+        socket_context_destroy(sock);
         exit(EXIT_FAILURE);
     }
 
-    socket_set_timeout(sock_raw, 1);
-
+    res = socket_create_raw(sock);
+    if (SOCKET_SUCCESS != res) {
+        for (size_t i = 0; i < user_cnt; i++) {
+            const user_t *user = get_users((int)i);
+            if (NULL == user)
+                continue;
+            if (NULL == user->file)
+                continue;
+            pcap_close(user->file);
+        }
+        exit(EXIT_FAILURE);
+    }
 
     while (1) {
-        int data_size = socket_receive(sock_raw, buffer, BUFFER_SIZE, &saddr, &saddr_size);
-        if (data_size < 0) {
+        ssize_t len = 0;
+        res = socket_receive_packet(sock, &len);
+        if (SOCKET_SUCCESS != res) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
             perror("Recvfrom error");
             break;
         }
 
-        // Check if packet matches GTPv2 traffic
-        bool is_retransmition = false;
-        if (is_gtpv2_traffic(buffer, data_size, &is_retransmition)) {
-
-            if (!is_retransmition) {
-                pcap_write_packet(buffer, (size_t)data_size);
+        bool is_retrans = false;
+        if (is_gtpv2_traffic(sock->buffer, (int)sock->buffer_size, &is_retrans)) {
+            if (!is_retrans) {
+                for (size_t i = 0; i < user_cnt; i++) {
+                    const user_t *user = get_users((int)i);
+                    if (NULL == user)
+                        continue;
+                    if (NULL == user->file)
+                        continue;
+                    pcap_write_packet(user->file, sock->buffer, (size_t)sock->buffer_size);
+                }
             }
-
         }
     }
 
-    socket_close(sock_raw);
-    pcap_close();
+    socket_context_destroy(sock);
+    for (size_t i = 0; i < user_cnt; i++) {
+        const user_t *user = get_users((int)i);
+        if (NULL == user)
+            continue;
+        if (NULL == user->file)
+            continue;
+        pcap_close(user->file);
+    }
     return 0;
 }

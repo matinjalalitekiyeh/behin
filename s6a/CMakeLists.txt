@@ -9,10 +9,10 @@ set(APP_HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/pcap_file_initialize.h"
     )
 
-add_executable("diameter" ${APP_SOURCES} ${APP_HEADERS} ${APP_HEADERS})
+add_executable("s6a" ${APP_SOURCES} ${APP_HEADERS} ${APP_HEADERS})
 
 target_link_libraries(
-    "diameter"
+    "s6a"
     PRIVATE
             "LibUtilities"
             "LibSniff_sock"
@@ -23,7 +23,7 @@ target_link_libraries(
 if(${ENABLE_WARNINGS})
     target_set_warnings(
         TARGET
-        "diameter"
+        "s6a"
         ENABLE
         ${ENABLE_WARNINGS}
         AS_ERRORS
@@ -33,7 +33,7 @@ endif()
 if(${ENABLE_LTO})
     target_enable_lto(
         TARGET
-        "diameter"
+        "s6a"
         ENABLE
         ON)
 endif()
