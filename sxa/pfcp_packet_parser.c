@@ -28,6 +28,7 @@ typedef struct __attribute__((packed)) pfcp_header_without_seid_s {
 void parse_all_ies_recursive(const uint8_t *data, int length) {
 //    printf("Total IEs length: %d\n", length);
 
+    data++;
     const uint8_t *current = data;
     const uint8_t *end = data + length;
 
@@ -42,8 +43,14 @@ void parse_all_ies_recursive(const uint8_t *data, int length) {
         uint16_t ie_type = (current[0] << 8) | current[1];
         uint16_t ie_length = (current[2] << 8) | current[3];
         ie_length = htons(ie_length);
+        ie_length = htons(ie_length);
 
-        printf("IE Type: 0x%04X, Length: %d\n", ie_type, ie_length);
+//        printf("IE Type: ");
+//        for (int i = 0 ; i < 50; i++) {
+//            printf("0x%02X ", current[i]);
+//        }
+//        printf("\n\n");
+        printf("type: 0x%04X (%d) -- Len: %d\n", ie_type, ie_type, ie_length);
 
         // Check if we have enough data for the IE value
         if (current + 4 + ie_length > end) {
@@ -150,14 +157,16 @@ int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans) 
                pfcp_header_with_seid_t *header = (pfcp_header_with_seid_t *)base_header;
                uint64_t seid = be64toh(header->seid);
                uint32_t seq_num = ntohl(header->sequence_number) >> 8;
+//               ies_data += sizeof(pfcp_header_with_seid_t);
 //               printf("SEID: 0x%016lX, Sequence: %u\n", seid, seq_num);
            } else {
                pfcp_header_without_seid_t *header = (pfcp_header_without_seid_t *)base_header;
                uint32_t seq_num = ntohl(header->sequence_number) >> 8;
+//               ies_data += sizeof(pfcp_header_without_seid_t);
 //               printf("Sequence: %u\n", seq_num);
            }
 
-//           printf("\n=== Starting IE Parsing ===\n");
+           printf("\n=== ====================== ===\n");
            parse_all_ies_recursive(ies_data, pfcp_ies_length);
 //           printf("=== Finished IE Parsing ===\n\n");
        }
