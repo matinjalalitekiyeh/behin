@@ -28,7 +28,7 @@ typedef struct __attribute__((packed)) pfcp_header_without_seid_s {
 void parse_all_ies_recursive(const uint8_t *data, int length) {
 //    printf("Total IEs length: %d\n", length);
 
-    data++;
+    data++;length--;
     const uint8_t *current = data;
     const uint8_t *end = data + length;
 
