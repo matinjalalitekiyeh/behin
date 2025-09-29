@@ -17,7 +17,7 @@ int add_user(unsigned long long imsi, const char *prefix) {
         strncpy(users[user_count].prefix, prefix, sizeof(users[user_count].prefix) - 1);
         users[user_count].prefix[sizeof(users[user_count].prefix) - 1] = '\0';
     } else {
-        strcpy(users[user_count].prefix, "s11");
+        strcpy(users[user_count].prefix, "sxa");
     }
 
     // Create the pcap filename "<prefix>_<imsi>.pcap"
@@ -110,7 +110,7 @@ int parse_range_from_args(int argc, char *argv[]) {
 
     // Add users
     for (unsigned long long i = 0; i < range_count; i++) {
-        if (!add_user(start_num + i, "s11")) {
+        if (!add_user(start_num + i, "sxa")) {
             fprintf(stderr, "Warning: User array full after adding %llu users\n", i);
             break;
         }

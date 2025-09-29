@@ -1,149 +1,161 @@
-#include "gtpv2_packet_parser.h"
+#include "pfcp_packet_parser.h"
 #include "ue_imsi.h"
 
-struct gtpv2_header {
+// PFCP Header structures according to 3GPP TS 29.244
+typedef struct __attribute__((packed)) pfcp_header_base_s {
     uint8_t flags;
     uint8_t message_type;
     uint16_t message_length;
-    uint32_t teid;
-    uint32_t sequence_number;
-} __attribute__((packed));
+} pfcp_header_base_t;
 
-struct gtpv2_ie {
+typedef struct __attribute__((packed)) pfcp_header_with_seid_s {
+    pfcp_header_base_t base;
+    uint64_t seid;
+    uint32_t sequence_number;
+    uint8_t message_priority; // Only present if MP flag is set
+} pfcp_header_with_seid_t;
+
+typedef struct __attribute__((packed)) pfcp_header_without_seid_s {
+    pfcp_header_base_t base;
+    uint32_t sequence_number;
+    uint8_t message_priority; // Only present if MP flag is set
+} pfcp_header_without_seid_t;
+
+// PFCP IE Header
+typedef struct __attribute__((packed)) pfcp_ie_header_s {
     uint16_t type;
     uint16_t length;
-    uint8_t *value;
-} __attribute__((packed));
+} pfcp_ie_header_t;
 
-typedef struct __attribute__((packed)) {
-    uint8_t interface_type : 6;
-    uint8_t is_ipv6 : 1;
-    uint8_t is_ipv4 : 1;
-} teid_t;
+void parse_all_ies_recursive(const uint8_t *data, int length) {
+    printf("Total IEs length: %d\n", length);
 
-void parse_fteid_ie(const uint8_t *data, uint16_t length) {
-    //    if (length < 2) {
-    //        printf("  F-TEID: Invalid length %d (min 2 bytes required)\n", length);
-    //        return;
-    //    }
+     const uint8_t *current = data;
+     const uint8_t *end = data + length;
 
-    //    struct fteid_ie fteid = {0};
-    //    const uint8_t *current = data;
+     while (current < end) {
+         // Check if we have enough data for IE header (4 bytes: 2 type + 2 length)
+         if (current + 4 > end) {
+             printf("Not enough data for IE header. Remaining: %ld bytes\n", (long)(end - current));
+             break;
+         }
 
-    //    // Parse interface type
-    //    fteid.interface_type = current[0];
-    //    printf("  F-TEID Interface Type: %u", fteid.interface_type);
+         // Parse IE header - PFCP IE format: 2 bytes type, 2 bytes length (big-endian)
+         uint16_t ie_type = (current[0] << 8) | current[1];
+         uint16_t ie_length = (current[2] << 8) | current[3];
 
-    //    // Map interface type to string
-    //    const char *interface_names[] = {
-    //        "S1-U eNodeB", "S1-U SGW", "S12 RNC", "S12 SGW", "S5/S8-U SGW",
-    //        "S5/S8-U PGW", "S5/S8-U SGW (PMIP)", "S5/S8-U PGW (PMIP)", "S11-MME", "S11/S4 SGW"
-    //    };
-    //    if (fteid.interface_type < sizeof(interface_names)/sizeof(interface_names[0])) {
-    //        printf(" (%s)", interface_names[fteid.interface_type]);
-    //    }
-    //    printf("\n");
+         printf("IE Type: 0x%04X, Length: %d", ie_type, ie_length);
 
-    //    // Parse flags
-    //    fteid.teid_gre_key_flag = current[1];
-    //    printf("  F-TEID Flags: 0x%02X\n", fteid.teid_gre_key_flag);
-    //    printf("    TEID/GRE Key present: %u\n", (fteid.teid_gre_key));
-}
+         // Check if we have enough data for the IE value
+         if (current + 4 + ie_length > end) {
+             printf(" - INCOMPLETE (needs %d, has %ld)\n", ie_length, (long)(end - current - 4));
+             break;
+         }
 
-uint32_t teids[1024 * 4];
-uint32_t teids_count = 0;
-bool is_teid = false;
-void parse_all_ies_recursive(const uint8_t *data, int length, uint32_t message_teid) {
+         // Print IE content bytes (first 16 bytes for readability)
+         if (ie_length > 0) {
+             printf(" - Content: ");
+             int bytes_to_print = (ie_length > 16) ? 16 : ie_length;
+             for (int i = 0; i < bytes_to_print; i++) {
+                 printf("%02X ", current[4 + i]);
+             }
+             if (ie_length > 16) {
+                 printf("... (+%d more)", ie_length - 16);
+             }
+         }
+         printf("\n");
 
-    //    printf("Total IEs length: %d\n", length);
+         // Process specific IE types
+         switch (ie_type) {
+             case 0x0039: { // F-TEID
+                 if (ie_length >= 5) {
+                     uint8_t interface_type = current[4];
+                     uint8_t teid_present = (current[5] & 0x01); // Check TEID present flag
 
-    const uint8_t *current = data;
-    const uint8_t *end = data + length;
+                     if (teid_present && ie_length >= 9) {
+                         uint32_t teid_value = (current[6] << 24) | (current[7] << 16) | (current[8] << 8) | current[9];
+                         printf("    F-TEID - Interface Type: 0x%02X, TEID: 0x%08X (%u)\n",
+                                interface_type, teid_value, teid_value);
+                     } else {
+                         printf("    F-TEID - Interface Type: 0x%02X, No TEID\n", interface_type);
+                     }
+                 }
+                 break;
+             }
 
-    is_teid = false;
+             case 0x0056: { // UE IP Address
+                 if (ie_length >= 1) {
+                     uint8_t ipv4_present = (current[4] >> 7) & 0x01;
+                     uint8_t ipv6_present = (current[4] >> 6) & 0x01;
 
-    while (current < end) {
-        // Check if we have enough data for IE header (4 bytes: 1 type + 2 length + 1 spare)
-        if (current + 4 > end) {
-            printf("Not enough data for IE header. Remaining: %ld bytes\n", (long)(end - current));
-            break;
-        }
+                     if (ipv4_present && ie_length >= 5) {
+                         printf("    UE IPv4 Address: %d.%d.%d.%d\n",
+                                current[5], current[6], current[7], current[8]);
+                     }
+                     if (ipv6_present && ie_length >= 21) {
+                         printf("    UE IPv6 Address present\n");
+                     }
+                 }
+                 break;
+             }
 
-        // Parse IE header - GTPv2 IE format: 1 byte type, 2 bytes length, 1 byte spare
-        uint8_t ie_type = current[0];
-        uint16_t ie_length = (current[1] << 8) | current[2];
-        // current[3] is spare byte (usually 0)
+             case 0x001C: { // F-SEID
+                 if (ie_length >= 9) {
+                     uint64_t seid = 0;
+                     for (int i = 0; i < 8; i++) {
+                         seid = (seid << 8) | current[5 + i]; // Skip flags byte
+                     }
+                     printf("    F-SEID: 0x%016lX\n", seid);
+                 }
+                 break;
+             }
 
-        //           printf("IE Type: 0x%02X, Length: %d", ie_type, ie_length);
+             case 0x005D: { // QFI
+                 if (ie_length >= 1) {
+                     printf("    QFI: 0x%02X\n", current[4] & 0x3F); // 6-bit QFI
+                 }
+                 break;
+             }
 
-        // Check if we have enough data for the IE value
-        if (current + 4 + ie_length > end) {
-            printf(" - INCOMPLETE (needs %d, has %ld)\n", ie_length, (long)(end - current - 4));
-            break;
-        }
+             case 0x002C: { // Precedence
+                 if (ie_length >= 3) {
+                     uint32_t precedence = (current[4] << 16) | (current[5] << 8) | current[6];
+                     printf("    Precedence: %u\n", precedence);
+                 }
+                 break;
+             }
 
-        // Create IE structure
-        struct gtpv2_ie ie;
-        ie.type = ie_type;
-        ie.length = ie_length;
-        ie.value = (uint8_t *)(current + 4);
+             case 0x0016: { // PDR ID
+                 if (ie_length >= 2) {
+                     uint16_t pdr_id = (current[4] << 8) | current[5];
+                     printf("    PDR ID: %u\n", pdr_id);
+                 }
+                 break;
+             }
 
-        if (ie.type == 0x01) {
-            char imsi_str[16] = {0};
-            parse_imsi_simple(ie.value, ie.length, imsi_str);
-            if (strcmp(imsi_str, "999990123456780") == 0) {
-//                printf("FOUND MATCH: \n");
-                is_teid = true;
+             case 0x0014: { // FAR ID
+                 if (ie_length >= 2) {
+                     uint16_t far_id = (current[4] << 8) | current[5];
+                     printf("    FAR ID: %u\n", far_id);
+                 }
+                 break;
+             }
 
-            }
-        }
+             default:
+                 // Unknown IE type
+                 break;
+         }
 
-        if (ie.type == 0x57) {
-            teid_t *teid_ = current + 4;
-            uint32_t TEID_GRE_key =  (*(current + 5) << 24) | (*(current + 6) << 16) | (*(current + 7) << 8) | (*(current + 8));
-
-//            printf("    F_TEID_interface_type:  %d -> %d, %d", teid_->interface_type, teid_->is_ipv4, teid_->is_ipv6 );
-//            printf("    F_TEID_interface_type:  0x%4X ->(%d) \n", TEID_GRE_key, TEID_GRE_key);
-
-            bool is_consist_array = true;
-
-            if (is_teid) {
-                for (int i = 0; i < teids_count; i++) {
-                    if (teids[i] == TEID_GRE_key)
-                        is_consist_array = false;
-                }
-                if (is_consist_array)
-                teids[teids_count++] = TEID_GRE_key;
-            } else {
-
-                for (int i = 0; i < teids_count; i++) {
-                    if (teids[i] == message_teid) {
-                        for (int i = 0; i < teids_count; i++) {
-                            if (teids[i] == TEID_GRE_key)
-                                is_consist_array = false;
-                        }
-                        if (is_consist_array)
-                        teids[teids_count++] = TEID_GRE_key;
-                    }
-                }
-            }
-
-
-        }
-
-        current += 4 + ie_length;
-    }
-
-//    printf("\n");
-
-
+         // Move to next IE
+         current += 4 + ie_length;
+     }
 }
 
 int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans) {
     *is_retrans = false;
 
     // Minimum size check for Ethernet + IP + UDP + GTPv2 header
-    if (length < (int)(sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr) + sizeof(struct gtpv2_header))) {
+    if (length < (int)(sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr) + sizeof(pfcp_header_base_t))) {
         return 0;
     }
 
@@ -179,7 +191,7 @@ int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans) 
         return 0;
     }
 
-    if (ntohs(udp->dest) != GTPV2_PORT && ntohs(udp->source) != GTPV2_PORT) {
+    if (ntohs(udp->dest) != PFCP_PORT && ntohs(udp->source) != PFCP_PORT) {
         return 0;
     }
 
@@ -188,51 +200,55 @@ int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans) 
     int udp_payload_len = ntohs(udp->len) - udp_header_len;
 
     // Check if we have enough data for GTPv2 header
-    if (udp_payload_len < (int)sizeof(struct gtpv2_header)) {
+    if (udp_payload_len < (int)sizeof(pfcp_header_base_t)) {
         return 0;
     }
 
-    // Get GTPv2 header
-    struct gtpv2_header *gtp = (struct gtpv2_header *)(packet + sizeof(struct ethhdr) + ip_header_len + udp_header_len);
+    // Parse PFCP base header
+       pfcp_header_base_t *base_header = (pfcp_header_base_t *)(packet + sizeof(struct ethhdr) + ip_header_len + udp_header_len);
 
-    // Parse flags
-    uint8_t version = (gtp->flags >> 5) & 0x07;
-    uint8_t piggyback = (gtp->flags >> 4) & 0x01;
-    uint8_t teid_flag = (gtp->flags >> 3) & 0x01;
+       // Extract flags
+       uint8_t version = (base_header->flags >> 5) & 0x07;
+       uint8_t mp_flag = (base_header->flags >> 1) & 0x01;
+       uint8_t seid_present = base_header->flags & 0x01;
 
-    gtp->teid = htonl(gtp->teid);
-//    printf("Message Type: %d -> teid_id: %d\n", gtp->message_type, gtp->teid);
+       // Calculate header size
+       int pfcp_header_size = sizeof(pfcp_header_base_t);
+       if (seid_present) {
+           pfcp_header_size += 11; // SEID (8) + Sequence (3) + Spare (1)
+       } else {
+           pfcp_header_size += 4;  // Sequence (3) + Spare (1)
+       }
+       if (mp_flag) {
+           pfcp_header_size += 1;  // Message Priority
+       }
 
-    // Message Length
-    uint16_t msg_len = ntohs(gtp->message_length);
-    //        printf("Message Length: %d bytes\n", msg_len);
+       // Calculate IEs data length
+       int pfcp_ies_length = udp_payload_len - pfcp_header_size;
 
-    // Calculate available data for IEs
-    int gtp_header_size = sizeof(struct gtpv2_header);
-    int ies_length = udp_payload_len - gtp_header_size;
+       printf("PFCP Message - Type: 0x%02X, Length: %u, Version: %d, MP: %d, SEID: %d\n",
+              base_header->message_type, ntohs(base_header->message_length),
+              version, mp_flag, seid_present);
 
+       if (pfcp_ies_length > 0) {
+           const unsigned char *ies_data = (const unsigned char *)(packet + sizeof(struct ethhdr) + ip_header_len + udp_header_len + pfcp_header_size);
 
-    bool cap_this = false;
+           // Parse SEID and Sequence Number if present
+           if (seid_present) {
+               pfcp_header_with_seid_t *header = (pfcp_header_with_seid_t *)base_header;
+               uint64_t seid = be64toh(header->seid);
+               uint32_t seq_num = ntohl(header->sequence_number) >> 8; // 24-bit sequence number
+               printf("SEID: 0x%016lX, Sequence: %u\n", seid, seq_num);
+           } else {
+               pfcp_header_without_seid_t *header = (pfcp_header_without_seid_t *)base_header;
+               uint32_t seq_num = ntohl(header->sequence_number) >> 8; // 24-bit sequence number
+               printf("Sequence: %u\n", seq_num);
+           }
 
-    if (ies_length > 0) {
-        //        printf("len: %d\n", msg_len);
-        const unsigned char *ies_data = (const unsigned char *)(packet + sizeof(struct ethhdr) + ip_header_len + udp_header_len + gtp_header_size);
+           printf("\n=== Starting IE Parsing ===\n");
+           parse_all_ies_recursive(ies_data, pfcp_ies_length);
+           printf("=== Finished IE Parsing ===\n\n");
+       }
 
-        //        printf("=== Information Elements ===\n");
-        parse_all_ies_recursive(ies_data, ies_length, gtp->teid);
-
-        for (int i = 0; i < teids_count; i++) {
-//            printf("++++++ TEID:%d:) %d\n", i, teids[i]);
-                        if (gtp->teid == teids[i] || is_teid) {
-                            cap_this = true;
-                        }
-        }
-
-        //        is_teid = false;
-
-    }
-
-    //    printf("============================\n");
-
-    return cap_this ? 1 : 0;
+    return 1;
 }
