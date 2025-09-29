@@ -92,7 +92,7 @@ void parse_all_ies_recursive(const uint8_t *data, int length, uint32_t message_t
             char imsi_str[16] = {0};
             parse_imsi_simple(ie.value, ie.length, imsi_str);
             if (strcmp(imsi_str, "999990123456780") == 0) {
-                printf("FOUND MATCH: \n");
+//                printf("FOUND MATCH: \n");
                 is_teid = true;
 
             }
@@ -102,8 +102,8 @@ void parse_all_ies_recursive(const uint8_t *data, int length, uint32_t message_t
             teid_t *teid_ = current + 4;
             uint32_t TEID_GRE_key =  (*(current + 5) << 24) | (*(current + 6) << 16) | (*(current + 7) << 8) | (*(current + 8));
 
-            printf("    F_TEID_interface_type:  %d -> %d, %d", teid_->interface_type, teid_->is_ipv4, teid_->is_ipv6 );
-            printf("    F_TEID_interface_type:  0x%4X ->(%d) \n", TEID_GRE_key, TEID_GRE_key);
+//            printf("    F_TEID_interface_type:  %d -> %d, %d", teid_->interface_type, teid_->is_ipv4, teid_->is_ipv6 );
+//            printf("    F_TEID_interface_type:  0x%4X ->(%d) \n", TEID_GRE_key, TEID_GRE_key);
 
             bool is_consist_array = true;
 
@@ -134,7 +134,7 @@ void parse_all_ies_recursive(const uint8_t *data, int length, uint32_t message_t
         current += 4 + ie_length;
     }
 
-    printf("\n");
+//    printf("\n");
 
 
 }
@@ -201,7 +201,7 @@ int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans) 
     uint8_t teid_flag = (gtp->flags >> 3) & 0x01;
 
     gtp->teid = htonl(gtp->teid);
-    printf("Message Type: %d -> teid_id: %d\n", gtp->message_type, gtp->teid);
+//    printf("Message Type: %d -> teid_id: %d\n", gtp->message_type, gtp->teid);
 
     // Message Length
     uint16_t msg_len = ntohs(gtp->message_length);
