@@ -15,9 +15,45 @@ struct gtpv2_ie {
     uint8_t *value;
 } __attribute__((packed));
 
+typedef struct __attribute__((packed)) {
+    uint8_t interface_type : 6;
+    uint8_t is_ipv6 : 1;
+    uint8_t is_ipv4 : 1;
+} teid_t;
+
+void parse_fteid_ie(const uint8_t *data, uint16_t length) {
+//    if (length < 2) {
+//        printf("  F-TEID: Invalid length %d (min 2 bytes required)\n", length);
+//        return;
+//    }
+
+//    struct fteid_ie fteid = {0};
+//    const uint8_t *current = data;
+
+//    // Parse interface type
+//    fteid.interface_type = current[0];
+//    printf("  F-TEID Interface Type: %u", fteid.interface_type);
+
+//    // Map interface type to string
+//    const char *interface_names[] = {
+//        "S1-U eNodeB", "S1-U SGW", "S12 RNC", "S12 SGW", "S5/S8-U SGW",
+//        "S5/S8-U PGW", "S5/S8-U SGW (PMIP)", "S5/S8-U PGW (PMIP)", "S11-MME", "S11/S4 SGW"
+//    };
+//    if (fteid.interface_type < sizeof(interface_names)/sizeof(interface_names[0])) {
+//        printf(" (%s)", interface_names[fteid.interface_type]);
+//    }
+//    printf("\n");
+
+//    // Parse flags
+//    fteid.teid_gre_key_flag = current[1];
+//    printf("  F-TEID Flags: 0x%02X\n", fteid.teid_gre_key_flag);
+//    printf("    TEID/GRE Key present: %u\n", (fteid.teid_gre_key));
+}
+
+
 void parse_all_ies_recursive(const uint8_t *data, int length) {
 
-    printf("Total IEs length: %d\n", length);
+//    printf("Total IEs length: %d\n", length);
 
        const uint8_t *current = data;
        const uint8_t *end = data + length;
@@ -34,7 +70,7 @@ void parse_all_ies_recursive(const uint8_t *data, int length) {
            uint16_t ie_length = (current[1] << 8) | current[2];
            // current[3] is spare byte (usually 0)
 
-           printf("IE Type: 0x%02X, Length: %d", ie_type, ie_length);
+//           printf("IE Type: 0x%02X, Length: %d", ie_type, ie_length);
 
            // Check if we have enough data for the IE value
            if (current + 4 + ie_length > end) {
@@ -48,22 +84,33 @@ void parse_all_ies_recursive(const uint8_t *data, int length) {
            ie.length = ie_length;
            ie.value = (uint8_t *)(current + 4);
 
-           printf(" - Value pointer: %p\n", (void*)ie.value);
+//           printf(" - Value pointer: %p\n", (void*)ie.value);
 
            // Print first few bytes of value
-           if (ie.length > 0) {
-               printf("  First few bytes: ");
-               for (int i = 0; i < (ie.length < 8 ? ie.length : 8); i++) {
-                   printf("%02X ", ie.value[i]);
-               }
-               printf("\n");
+//           if (ie.length > 0) {
+//               printf("  First few bytes: ");
+//               for (int i = 0; i < (ie.length < 8 ? ie.length : 8); i++) {
+//                   printf("%02X ", ie.value[i]);
+//               }
+//               printf("\n");
+//           }
+
+           if (ie.type == 0x57) {
+//               uint8_t* F_TEID_interface_type = current + 4;
+               teid_t *teid_ = current + 4;
+               uint32_t TEID_GRE_key =  (*(current + 5) << 24) | (*(current + 6) << 16) | (*(current + 7) << 8) | (*(current + 8));
+//               *TEID_GRE_key = htonl(*TEID_GRE_key);
+
+               printf("F_TEID_interface_type:  %d -> %d, %d", teid_->interface_type, teid_->is_ipv4, teid_->is_ipv6 );
+               printf("F_TEID_interface_type:  0x%4X ->(%d) \n", TEID_GRE_key, TEID_GRE_key);
+//                parse_fteid_ie(current + 4, ie.length);
            }
 
            // Move to next IE (4 byte header + IE value length)
            current += 4 + ie_length;
        }
 
-       printf("Parsed %ld bytes out of %d total\n", (long)(current - data), length);
+//       printf("Parsed %ld bytes out of %d total\n", (long)(current - data), length);
 
 }
 
@@ -129,8 +176,8 @@ int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans) 
     uint8_t teid_flag = (gtp->flags >> 3) & 0x01;
 
     // Message Type
-    printf("=== GTPv2 Message === ");
-    printf("Message Type: %d (0x%02X)\n", gtp->message_type, gtp->message_type);
+//    printf("=== GTPv2 Message === ");
+//    printf("Message Type: %d (0x%02X)\n", gtp->message_type, gtp->message_type);
 
     // Message Length
     uint16_t msg_len = ntohs(gtp->message_length);
@@ -149,7 +196,7 @@ int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans) 
         parse_all_ies_recursive(ies_data, ies_length);
     }
 
-    printf("============================\n");
+//    printf("============================\n");
 
     return 1;
 }
