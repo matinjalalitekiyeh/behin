@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "socket_mdl.h"
+#include "sniff_sock.h"
 #include "pcap_module.h"
 
 #include <netinet/udp.h>

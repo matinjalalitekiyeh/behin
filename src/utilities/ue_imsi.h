@@ -29,8 +29,10 @@ typedef struct __attribute__((packed)) {
         uint8_t digit14:4;)
 } imsi_structure_t;
 
-
 int imsi_to_string(const unsigned char* packet_bytes, char* output_buffer, size_t buffer_size);
+
+
+void parse_imsi_simple(const uint8_t *imsi_data, int length, char *imsi_str);
 
 
 long long imsi_direct_to_long_long(const unsigned char* packet_bytes);

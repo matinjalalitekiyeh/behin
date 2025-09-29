@@ -1,18 +1,18 @@
 set(APP_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/main.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/gtpv2_packet_parser.c"
         "${CMAKE_CURRENT_SOURCE_DIR}/pcap_file_initialize.c"
-        "${CMAKE_CURRENT_SOURCE_DIR}/diameter_packet_parser.c"
 )
 
 set(APP_HEADERS
-    "${CMAKE_CURRENT_SOURCE_DIR}/diameter_packet_parser.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/gtpv2_packet_parser.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/pcap_file_initialize.h"
     )
 
-add_executable("diameter" ${APP_SOURCES} ${APP_HEADERS} ${APP_HEADERS})
+add_executable("s11" ${APP_SOURCES} ${APP_HEADERS} ${APP_HEADERS})
 
 target_link_libraries(
-    "diameter"
+    "s11"
     PRIVATE
             "LibUtilities"
             "LibSniff_sock"
@@ -23,7 +23,7 @@ target_link_libraries(
 if(${ENABLE_WARNINGS})
     target_set_warnings(
         TARGET
-        "diameter"
+        "s11"
         ENABLE
         ${ENABLE_WARNINGS}
         AS_ERRORS
@@ -33,11 +33,11 @@ endif()
 if(${ENABLE_LTO})
     target_enable_lto(
         TARGET
-        "diameter"
+        "s11"
         ENABLE
         ON)
 endif()
 
 if(${ENABLE_CLANG_TIDY})
-    add_clang_tidy_to_target("diameter")
+    add_clang_tidy_to_target("s11")
 endif()
