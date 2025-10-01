@@ -7,149 +7,674 @@ static bool first_packet = true;
 #define TARGET_CLIENT_IP "127.0.0.2"
 #define TARGET_SERVER_IP "127.0.1.1"
 
-static void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length) {
-    if (s1ap_length < 2) {
-        printf("S1AP message too short: %d bytes\n", s1ap_length);
-        return;
-    }
+struct data_t {
+    uint8_t msb:4;
+    uint8_t lsb:4;
+};
 
-    printf("\n=== S1AP Message Analysis ===\n");
-    printf("Total length: %d bytes\n", s1ap_length);
 
-    /* Print first few bytes for debugging */
-    printf("First 8 bytes: ");
-    for (int i = 0; i < (s1ap_length < 8 ? s1ap_length : 8); i++) {
-        printf("%02x ", s1ap_data[i]);
-    }
-    printf("\n");
+struct eps_type_t {
+    uint8_t attach_type : 3;
+    uint8_t spare_bit : 1;
+    uint8_t nas_key_set_identifier : 3;
+    uint8_t tsc : 1;
+};
 
-    const uint8_t *ptr = s1ap_data;
-    int remaining = s1ap_length;
-    int ie_count = 0;
 
-    /* Parse S1AP PDU type and procedure code */
-    if (remaining < 1) return;
+uint32_t should_trace_enb_ue_s1ap_id = 0;
 
-    uint8_t first_byte = ptr[0];
-    int pdu_type = (first_byte >> 6) & 0x03; /* First 2 bits */
-    int procedure_code = first_byte & 0x3F;   /* Last 6 bits */
+void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length, const char* direction, bool& is_cap, const unsigned char *packet, int packet_len) {
+    if (s1ap_length < 2) return;
 
-    const char *pdu_type_str = "";
-    switch (pdu_type) {
-        case 0: pdu_type_str = "InitiatingMessage"; break;
-        case 1: pdu_type_str = "SuccessfulOutcome"; break;
-        case 2: pdu_type_str = "UnsuccessfulOutcome"; break;
-        default: pdu_type_str = "Unknown"; break;
-    }
+    static bool repeater = false;
+    static bool capture_tmsi = false;
+    static bool valid_imsi = true;
+    repeater = !repeater;
+    if (!repeater) return;
 
-    printf("PDU Type: %s, Procedure Code: %d\n", pdu_type_str, procedure_code);
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
 
-    ptr += 1;
-    remaining -= 1;
+    static int packet_id = 0;
+    uint32_t enb_ue_s1ap_id = 0x00;
 
-    /* Extended procedure code if needed */
-    if (procedure_code == 0x3F && remaining >= 1) {
-        procedure_code = ptr[0];
-        ptr += 1;
-        remaining -= 1;
-        printf("Extended Procedure Code: %d\n", procedure_code);
-    }
+    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0c && s1ap_data[2] == 0x40) {
 
-    printf("\nProtocol IEs:\n");
-    printf("Type\t\tLength\tCriticality\tPresence\n");
-    printf("----\t\t------\t----------\t--------\n");
 
-    while (remaining >= 2) {
-        uint16_t ie_id = (ptr[0] << 8) | ptr[1];
-        ptr += 2;
-        remaining -= 2;
 
-        if (remaining < 1) break;
-
-        /* Parse Criticality and Presence */
-        uint8_t crit_pres_byte = ptr[0];
-        int criticality = (crit_pres_byte >> 6) & 0x03;
-        int presence = (crit_pres_byte >> 4) & 0x03;
-        ptr += 1;
-        remaining -= 1;
-
-        /* Handle extended criticality if present */
-        if (criticality == 3) { /* extended */
-            if (remaining >= 1) {
-                criticality = ptr[0] & 0x03;
-                ptr += 1;
-                remaining -= 1;
-            }
-        }
-
-        if (remaining < 1) break;
-
-        /* Parse Length */
-        uint8_t len_byte = ptr[0];
-        uint32_t ie_length = 0;
-        int len_bytes = 1;
-
-        if (len_byte & 0x80) {
-            int ext_len_bytes = len_byte & 0x7F;
-            if (ext_len_bytes == 1 && remaining >= 2) {
-                ie_length = ptr[1];
-                len_bytes = 2;
-            } else if (ext_len_bytes == 2 && remaining >= 3) {
-                ie_length = (ptr[1] << 8) | ptr[2];
-                len_bytes = 3;
-            } else if (ext_len_bytes == 3 && remaining >= 4) {
-                ie_length = (ptr[1] << 16) | (ptr[2] << 8) | ptr[3];
-                len_bytes = 4;
-            } else {
-                printf("Invalid length encoding for IE %u\n", ie_id);
+        int idx = 0;
+        for (int i = 0; i < s1ap_length - 2; i++) {
+            if (s1ap_data[i] == 0x00 && s1ap_data[i+1] == 0x08) {
+                idx = i;
                 break;
             }
-        } else {
-            ie_length = len_byte;
         }
 
-        ptr += len_bytes;
-        remaining -= len_bytes;
+        uint16_t protocol_field = htons( *(uint16_t*)&s1ap_data[idx] );
+        //        std::cout << "protocol_field: " << protocol_field << std::endl;
 
-        /* Validate we have enough data */
-        if (ie_length > (uint32_t)remaining) {
-            printf("IE %u: Length %u exceeds remaining %d\n", ie_id, ie_length, remaining);
-            break;
+        if (protocol_field == 0x0008) {
+            const int len_idx = idx + (int)(sizeof (uint16_t));
+            uint16_t enb_ue_s1ap_id_len = htons( *(uint16_t*)&s1ap_data[len_idx] );
+
+            const int enb_idx = len_idx + (int)(sizeof (uint16_t));
+
+
+            memcpy(&enb_ue_s1ap_id, &s1ap_data[enb_idx], enb_ue_s1ap_id_len);
+
+
+            if (enb_ue_s1ap_id_len == 2) {
+                enb_ue_s1ap_id = htons(enb_ue_s1ap_id);
+            } else if (enb_ue_s1ap_id_len == 4) {
+                enb_ue_s1ap_id = htonl(enb_ue_s1ap_id);
+            }
+
+
+            std::cout << "\n *********** ENB UE S1AP ID: " << enb_ue_s1ap_id  << '\n' << std::endl;
+
         }
 
-        /* Decode criticality */
-        const char *crit_str = "UNKNOWN";
-        switch (criticality) {
-            case 0: crit_str = "REJECT"; break;
-            case 1: crit_str = "IGNORE"; break;
-            case 2: crit_str = "NOTIFY"; break;
+
+
+        int idx2 = 0;
+        for (int i = 0; i < s1ap_length - 3; i++) {
+            if (s1ap_data[i] == 0x00 && s1ap_data[i+1] == 0x1a && s1ap_data[i+2] == 0x00) {
+                idx2 = i;
+                break;
+            }
         }
 
-        /* Decode presence */
-        const char *pres_str = "UNKNOWN";
-        switch (presence) {
-            case 0: pres_str = "OPTIONAL"; break;
-            case 1: pres_str = "CONDITIONAL"; break;
-            case 2: pres_str = "MANDATORY"; break;
+        struct data_t d;
+        memset(&d, 0, sizeof (struct data_t));
+        memcpy(&d, &s1ap_data[idx2 + 5], sizeof(struct data_t));
+        if (d.lsb == 0) {
+            //            std::cout << "ok " << std::bitset<4>(d.msb) << ' ' << std::bitset<4>(d.lsb) << std::endl;
+        } else if (d.lsb == 1) {
+            //            std::cout << "should shift 6 byte " << std::bitset<4>(d.lsb) << std::endl;
+            idx2 += 6;
         }
 
-        printf("%-8u\t%-6u\t%-10s\t%s\n", ie_id, ie_length, crit_str, pres_str);
-        ie_count++;
 
-        /* Move to next IE */
-        ptr += ie_length;
-        remaining -= ie_length;
+        uint8_t nas_eps_mobility_management_message_type = *(uint8_t*)&s1ap_data[idx2 + 6];
+        memcpy(&nas_eps_mobility_management_message_type, &s1ap_data[idx2 + 6], sizeof(uint8_t));
+        if (nas_eps_mobility_management_message_type == 0x41) {
+            printf("nas_eps_mobility_management_message_type 0x41\n");
+//            std::cout << "nas_eps_mobility_management_message_type 0x41" << nas_eps_mobility_management_message_type << std::endl;
+        }else if (nas_eps_mobility_management_message_type == 0x48) {
+            printf("nas_eps_mobility_management_message_type 0x48\n");
+//            std::cout << "nas_eps_mobility_management_message_type 0x48" << nas_eps_mobility_management_message_type << std::endl;
+        }
+
+        //7
+
+        uint8_t guti_type = *(uint8_t*)&s1ap_data[idx2 + 9];
+        uint8_t type = (guti_type  & 0x07);
+
+        if (type == 6) {
+            uint32_t tmsi = 0x00;
+            memcpy(&tmsi, &s1ap_data[idx2 + 16], sizeof(uint32_t));
+            tmsi = htonl(tmsi);
+            printf("guti: %d\n", tmsi);
+//            std::cout << "guti: " << tmsi << std::endl;
+
+            if (0x00 == tmsi) {
+                should_trace_enb_ue_s1ap_id = enb_ue_s1ap_id;
+                is_cap = true;
+            }
+
+        } else if (type == 1) {
+            std::string imsi_str = imsi_to_string(&s1ap_data[idx2 + 9]);
+            std::cout << "imsi: " << imsi_str << std::endl;
+
+            if ("999990123456780" == imsi_str) {
+                should_trace_enb_ue_s1ap_id = enb_ue_s1ap_id;
+                is_cap = true;
+            }
+
+        }
+
+    } else {
+
+        //                auto type = *(uint16_t*)&s1ap_data[7];
+        ////                int idx = 0;
+        //                if (type == 0) {
+        //                    auto enb_ue_s1ap_id_len = *(uint8_t*)&s1ap_data[10];
+        //                    uint32_t enb_ue_s1ap_id = 0x00;
+        //                    memcpy(&enb_ue_s1ap_id, &s1ap_data[11], enb_ue_s1ap_id_len);
+        //                    if (enb_ue_s1ap_id_len == 2) {
+        //                        enb_ue_s1ap_id = htons(enb_ue_s1ap_id);
+        //                    } else if (enb_ue_s1ap_id_len == 4) {
+        //                        enb_ue_s1ap_id = htonl(enb_ue_s1ap_id);
+        //                    }
+        //                    std::cout << "Catch: " << enb_ue_s1ap_id << std::endl;
+        ////                    idx = 11 + enb_ue_s1ap_id_len;
+        //                }
+
+        //                type = *(uint16_t*)&s1ap_data[idx];
+        //                if (type == 8) {
+        //                    idx++;
+        //                    auto mme_ue_s1ap_id_len = *(uint8_t*)&s1ap_data[idx++];
+        //                    uint32_t mme_ue_s1ap_id = 0x00;
+        //                    memcpy(&mme_ue_s1ap_id, &s1ap_data[idx], mme_ue_s1ap_id_len);
+        //                    if (mme_ue_s1ap_id_len == 2) {
+        //                        mme_ue_s1ap_id = htons(mme_ue_s1ap_id);
+        //                    } else if (mme_ue_s1ap_id_len == 4) {
+        //                        mme_ue_s1ap_id = htonl(mme_ue_s1ap_id);
+        //                    }
+        //                } //test konammmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm
+
+        uint8_t len = *(uint8_t*)&s1ap_data[10];
+        uint32_t enb = 0x00;
+        memcpy(&enb, &s1ap_data[11], len);
+        if (len == 2) {
+            enb = htons(enb);
+        } else if (len == 4) {
+            enb = htonl(enb);
+        }
+        uint16_t xxx =  *(uint16_t*)&s1ap_data[11] ;
+        xxx = htons(xxx);
+
+        uint16_t xxx2 =  *(uint16_t*)&s1ap_data[17] ;
+        xxx2 = htons(xxx2);
+        //        std::cout << "Catch: " << enb << ' ' << xxx << ' ' << xxx2 << std::endl;
+
+        uint32_t message_type = 0;//;*(uint32_t*)&s1ap_data[0];
+
+        auto capture = [&]() { if (should_trace_enb_ue_s1ap_id == xxx2) is_cap = true; };
+
+        if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0b && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x17) {
+            printf("DownlinkNASTransport, Identity request: %d - %d - %d\n", message_type, xxx, xxx2);
+            s1ap_downlink_nas_transport_t dnt;
+            int result_code = parse_downlink_nas_transport((uint8_t*)&s1ap_data[1], s1ap_length, &dnt);
+            std::cout << "************ * //// " <<dnt.mme_ue_s1ap_id << ' ' << dnt.enb_ue_s1ap_id << ' ' << dnt.procedure_code << std::endl;
+            capture();
+        }
+        if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0d && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x35) {
+            printf("UplinkNASTransport, Identity response: %d - %d - %d\n", message_type, xxx, xxx2);
+            capture();
+        }
+        if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0b && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x38) {
+            printf("DownlinkNASTransport, Authentication request: %d - %d - %d\n", message_type, xxx, xxx2);
+            s1ap_downlink_nas_transport_t dnt;
+            int result_code = parse_downlink_nas_transport((uint8_t*)&s1ap_data[0], s1ap_length, &dnt);
+            std::cout << "************ * //// " <<dnt.mme_ue_s1ap_id << ' ' << dnt.enb_ue_s1ap_id << ' ' << dnt.procedure_code << std::endl;
+            capture();
+        }
+        if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0d && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x35) {
+            printf("UplinkNASTransport, Authentication response: %d - %d - %d\n", message_type, xxx, xxx2);
+            capture();
+        }
+        if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0b && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x2c) {
+            printf("DownlinkNASTransport, Security mode command: %d - %d - %d\n", message_type, xxx, xxx2);
+            s1ap_downlink_nas_transport_t dnt;
+            int result_code = parse_downlink_nas_transport((uint8_t*)&s1ap_data[0], s1ap_length, &dnt);
+            std::cout << "************ * //// " <<dnt.mme_ue_s1ap_id << ' ' << dnt.enb_ue_s1ap_id << ' ' << dnt.procedure_code << std::endl;
+            capture();
+        }
+        if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0d && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x3d) {
+            printf("UplinkNASTransport, Security mode complete: %d - %d - %d\n", message_type, xxx, xxx2);
+            capture();
+        }
+        if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0b && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x1d) {
+            printf("DownlinkNASTransport, ESM information request: %d - %d - %d\n", message_type, xxx, xxx2);
+            s1ap_downlink_nas_transport_t dnt;
+            int result_code = parse_downlink_nas_transport((uint8_t*)&s1ap_data[0], s1ap_length, &dnt);
+            std::cout << "************ * //// " <<dnt.mme_ue_s1ap_id << ' ' << dnt.enb_ue_s1ap_id << ' ' << dnt.procedure_code << std::endl;
+            capture();
+        }
+        if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0d && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x3e) {
+            printf("UplinkNASTransport, ESM information response: %d - %d - %d\n", message_type, xxx, xxx2);
+            capture();
+        }
+        if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x09 && s1ap_data[2] == 0x00 && s1ap_data[3] == 0x80) {
+            printf("InitialContextSetupRequest, Attach accept, Activate default EPS bearer context request: %d - %d - %d\n", message_type, xxx, xxx2);
+            capture();
+        }
+        if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x16 && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x24) {
+            printf("UECapabilityInfoIndication, UECapabilityInformation: %d - %d - %d\n", message_type, xxx, xxx2);
+            capture();
+        }
+        if (s1ap_data[0] == 0x20 && s1ap_data[1] == 0x09 && s1ap_data[2] == 0x00 && s1ap_data[3] == 0x22) {
+            printf("InitialContextSetupResponse, UplinkNASTransport, Attach complete, Activate default EPS bearer context accept: %d - %d - %d\n", message_type, xxx, xxx2);
+            capture();
+        }
+        if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0b && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x45) {
+            printf("DownlinkNASTransport, EMM information: %d - %d - %d\n", message_type, xxx, xxx2);
+            s1ap_downlink_nas_transport_t dnt;
+            int result_code = parse_downlink_nas_transport((uint8_t*)&s1ap_data[0], s1ap_length, &dnt);
+            std::cout << "************ * //// " <<dnt.mme_ue_s1ap_id << ' ' << dnt.enb_ue_s1ap_id << ' ' << dnt.procedure_code << std::endl;
+            capture();
+        }
+
     }
 
-    printf("\nTotal IEs parsed: %d\n", ie_count);
-    printf("Remaining unparsed bytes: %d\n", remaining);
 
-    if (remaining > 0) {
-        printf("Warning: %d bytes not parsed\n", remaining);
-    }
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0b && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x17) {
+    //        printf("DownlinkNASTransport, Identity request: %d\n", message_type);
 
-    printf("=== End S1AP Analysis ===\n\n");
+
+    //        int found_at = 0;
+    //            for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //                if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                    found_at = i;
+    //                    break;
+    //                }
+    //            }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+    //    }
+
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0d && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x35) {
+    //        printf("UplinkNASTransport, Identity response: %d\n", message_type);
+
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+
+    //        auto imsi_str = imsi_to_string(&s1ap_data[27]);
+    //        if (valid_imsi) {
+    //            s_trace_packet_pcap.at(found_at).imsi = imsi_str;
+    //        }
+
+    //        valid_imsi  = false;
+    //        capture_tmsi = true;
+
+    //    }
+
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0b && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x38) {
+    //        printf("DownlinkNASTransport, Authentication request: %d\n", message_type);
+
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+    //    }
+
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0d && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x35) {
+    //        printf("UplinkNASTransport, Authentication response: %d\n", message_type);
+    //        int index = 4;
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+
+
+    //    }
+
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0b && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x2c) {
+    //        int index = 5;
+
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+
+    //        printf("DownlinkNASTransport, Security mode command: %d\n", message_type);
+    //    }
+
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0d && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x3d) {
+    //        printf("UplinkNASTransport, Security mode complete: %d\n", message_type);
+    //        int index = 6;
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+    //    }
+
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0b && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x1d) {
+    //        int index = 7;
+
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+
+    //        printf("DownlinkNASTransport, ESM information request: %d\n", message_type);
+    //    }
+
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0d && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x3e) {
+    //        printf("UplinkNASTransport, ESM information response: %d\n", message_type);
+    //        int index = 8;
+
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+
+    //    }
+
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x09 && s1ap_data[2] == 0x00 && s1ap_data[3] == 0x80) {
+    //        printf("InitialContextSetupRequest, Attach accept, Activate default EPS bearer context request: %d\n", message_type);
+    //        int index = 9;
+
+
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+
+
+    ////        uint32_t TMSI = ;
+    ////        TMSI = htonl(TMSI);
+    //        if (capture_tmsi) {
+    //            s_trace_packet_pcap.at(found_at).valid_tmsi = htonl(*(uint32_t*)&s1ap_data[115]);
+    ////            printf("++++++++++++++++ TMSI %d : %u -> %x %x %x %x\n", capture_tmsi, TMSI, s1ap_data[115], s1ap_data[116], s1ap_data[117], s1ap_data[118]);
+    ////            stored_tmsi = TMSI;
+    //        }
+    //        capture_tmsi = false;
+    //        valid_imsi = true;
+    //    }
+
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x16 && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x24) {
+    //        printf("UECapabilityInfoIndication, UECapabilityInformation: %d\n", message_type);
+    //        int index = 10;
+
+
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+
+
+
+    //    }
+
+    //    if (s1ap_data[0] == 0x20 && s1ap_data[1] == 0x09 && s1ap_data[2] == 0x00 && s1ap_data[3] == 0x22) {
+    //        printf("InitialContextSetupResponse, UplinkNASTransport, Attach complete, Activate default EPS bearer context accept: %d\n", message_type);
+    //        int index = 11;
+
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+
+    //    }
+
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0b && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x45) {
+    //        printf("DownlinkNASTransport, EMM information: %d\n", message_type);
+    //        int index = 12;
+
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+
+    //        is_cap = true;
+
+    //    }
+
+    //    //////////////////////////////////////////////////////////////////////////////////////
+
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0d && s1ap_data[2] == 0x40 && s1ap_data[3] == 0x3f) {
+    //        printf("UplinkNASTransport, Detach request (EPS detach / switch-off): %d\n", message_type);
+    //        uint32_t TMSI = *(uint32_t*)&s1ap_data[41];
+    //        // TMSI = htonl(TMSI);
+    //        printf("++++++++++++++++ TMSI detach %d : \n", TMSI);
+
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+    //    }
+
+    //    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x17 && s1ap_data[2] == 0x00 && s1ap_data[3] == 0x10) {
+    //        printf("UEContextReleaseCommand [NAS-cause=detach]: %d\n", message_type);
+
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+
+    //    }
+
+    //    if (s1ap_data[0] == 0x20 && s1ap_data[1] == 0x17 && s1ap_data[2] == 0x00 && s1ap_data[3] == 0x0f) {
+    //        printf("UEContextReleaseComplete: %d\n", message_type);
+
+    //        uint16_t ue_id = *(uint16_t*)&s1ap_data[11];
+    //        int found_at = 0;
+    //        for (int i = 0; i < s_trace_packet_pcap.size(); i++) {
+    //            if (s_trace_packet_pcap.at(i).ue_id == ue_id) {
+    //                found_at = i;
+    //                break;
+    //            }
+    //        }
+
+    //        s_trace_packet_pcap.at(found_at).ue_id = ue_id;
+    //        int count = s_trace_packet_pcap.at(found_at).count;
+    //        s_trace_packet_pcap.at(found_at).packet[count].packet_type = message_type;
+    //        s_trace_packet_pcap.at(found_at).packet[count].size = packet_len;
+    //        memcpy(&s_trace_packet_pcap.at(found_at).packet[count].packet[0], packet, packet_len);;
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_sec = static_cast<uint32_t>(tv.tv_sec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.ts_usec = static_cast<uint32_t>(tv.tv_usec);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.incl_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).packet[count].rec_header.orig_len = static_cast<uint32_t>(s1ap_length);
+    //        s_trace_packet_pcap.at(found_at).count++;
+
+
+
+    ////        std::cout << "should write" << std::endl;
+
+    ////        std::erase(s_trace_packet_pcap, std::distance(std::begin(s_trace_packet_pcap), std::begin(s_trace_packet_pcap) + found_at));
+
+    ////        auto* iter = s_trace_packet_pcap.at(found_at);
+
+    ////        s_trace_packet_pcap.erase(  )
+
+
+
+
+    //    }
+
+
 }
+
+
+
 int is_s1ap_packet(const unsigned char *packet, int length, bool* is_retrans)
 {
     *is_retrans = false;
