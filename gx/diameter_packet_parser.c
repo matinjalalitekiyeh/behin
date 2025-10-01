@@ -183,11 +183,11 @@ static void print_parent_avps(diam_avp_t *parent_avps, uint32_t end_id, uint32_t
 
     diam_avp_t *current = parent_avps;
     while (current != NULL) {
-        printf("avp code is : 0x%8X\n", current->avp_code);
+//        printf("avp code is : 0x%8X\n", current->avp_code);
 
 
         if (0x000001bb == current->avp_code) {
-                  printf("********************************Found Subscription-Id AVP\n");
+//                  printf("********************************Found Subscription-Id AVP\n");
 
                   // Parse nested AVPs inside Subscription-Id
                   if (current->data != NULL && current->data_length > 0) {
@@ -236,15 +236,15 @@ static void print_parent_avps(diam_avp_t *parent_avps, uint32_t end_id, uint32_t
                           if (nested_avp_code == 0x000001c2 && nested_data_length >= 4) {
                               subscription_id_type = (nested_data[0] << 24) | (nested_data[1] << 16) | (nested_data[2] << 8) | nested_data[3];
                               found_type = true;
-                              printf("  Subscription-Id-Type: %u", subscription_id_type);
-                              switch(subscription_id_type) {
-                                  case 0: printf(" (END_USER_E164)\n"); break;
-                                  case 1: printf(" (END_USER_IMSI)\n"); break;
-                                  case 2: printf(" (END_USER_SIP_URI)\n"); break;
-                                  case 3: printf(" (END_USER_NAI)\n"); break;
-                                  case 4: printf(" (END_USER_PRIVATE)\n"); break;
-                                  default: printf(" (Unknown)\n"); break;
-                              }
+//                              printf("  Subscription-Id-Type: %u", subscription_id_type);
+//                              switch(subscription_id_type) {
+//                                  case 0: printf(" (END_USER_E164)\n"); break;
+//                                  case 1: printf(" (END_USER_IMSI)\n"); break;
+//                                  case 2: printf(" (END_USER_SIP_URI)\n"); break;
+//                                  case 3: printf(" (END_USER_NAI)\n"); break;
+//                                  case 4: printf(" (END_USER_PRIVATE)\n"); break;
+//                                  default: printf(" (Unknown)\n"); break;
+//                              }
                           }
 
                           // Process Subscription-Id-Data (0x000001bc) - IMSI
@@ -256,11 +256,19 @@ static void print_parent_avps(diam_avp_t *parent_avps, uint32_t end_id, uint32_t
                               memcpy(imsi, nested_data, imsi_len);
                               imsi[imsi_len] = '\0';
                               found_imsi = true;
-                              printf("  Subscription-Id-Data (IMSI): %s\n", imsi);
+//                              printf("  Subscription-Id-Data (IMSI): %s\n", imsi);
 
                               // Check if this matches our target IMSI
                               if (strcmp(imsi, IMSI_CAPTURE) == 0) {
-                                  printf("  >>> TARGET IMSI FOUND: %s <<<\n", imsi);
+                                  s_end_id[s_user_cnt] = end_id;
+                                  s_hop_id[s_user_cnt] = hop_id;
+                                  s_user_cnt++;
+                                              is_cap = true;
+                                  printf("------------------------------------------ enid: %d _ hopid: %d\n\n", end_id, hop_id);
+
+//                                  printf("************************** ")
+
+//                                  printf("  >>> TARGET IMSI FOUND: %s <<<\n", imsi);
                               }
                           }
 
@@ -295,6 +303,10 @@ static void print_parent_avps(diam_avp_t *parent_avps, uint32_t end_id, uint32_t
         current = current->next;
     }
 }
+
+uint32_t hop_id;
+uint32_t end_id;
+
 static void parse_diam_message(const uint8_t *diam_data, int diam_length) {
     if (diam_length < 20) {
         printf("Diameter message too short (%d bytes)\n", diam_length);
@@ -302,14 +314,18 @@ static void parse_diam_message(const uint8_t *diam_data, int diam_length) {
     }
 
     uint32_t app_id = (diam_data[8] << 24) | (diam_data[9] << 16) | (diam_data[10] << 8) | diam_data[11];
-    uint32_t hop_id = (diam_data[12] << 24) | (diam_data[13] << 16) | (diam_data[14] << 8) | diam_data[15];
-    uint32_t end_id = (diam_data[16] << 24) | (diam_data[17] << 16) | (diam_data[18] << 8) | diam_data[19];
+    hop_id = (diam_data[12] << 24) | (diam_data[13] << 16) | (diam_data[14] << 8) | diam_data[15];
+    end_id = (diam_data[16] << 24) | (diam_data[17] << 16) | (diam_data[18] << 8) | diam_data[19];
 
-    for (uint32_t i = 0; i < s_user_cnt; i++) {
-        if (s_hop_id[i] == hop_id && s_end_id[i] == end_id) {
-            is_cap = true;
-        }
-    }
+//    printf("enid: %d _ hopid: %d\n\n", end_id, hop_id);
+
+//    for (uint32_t i = 0; i < s_user_cnt; i++) {
+////        printf("%d ) s_hop_id[%d] - hop_id[%d] - s_end_id[%d] - _end_id[%d]\n", i, s_hop_id[i], hop_id, s_end_id[i], end_id);
+//        if (s_hop_id[i] == hop_id && s_end_id[i] == end_id) {
+//            is_cap = true;
+//        }
+//    }
+
 
 
     /* gx:16777238(0x1000016) */
@@ -463,5 +479,14 @@ int is_diam_packet(const unsigned char *packet, int length, bool *is_retrans)
         }
     }
 
-    return has_diam ? 1 : 0;
+
+    bool is_ = false;
+        for (uint32_t i = 0; i < s_user_cnt; i++) {
+            if (s_hop_id[i] == hop_id && s_end_id[i] == end_id) {
+                is_ = true;
+            }
+        }
+//    printf("XXXXXX %d\n\n", is_cap);
+
+    return has_diam&&is_ ? 1 : 0;
 }
