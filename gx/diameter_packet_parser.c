@@ -183,10 +183,112 @@ static void print_parent_avps(diam_avp_t *parent_avps, uint32_t end_id, uint32_t
 
     diam_avp_t *current = parent_avps;
     while (current != NULL) {
-//        printf("avp code is : 0x%8X\n", current->avp_code);
+        printf("avp code is : 0x%8X\n", current->avp_code);
+
+
         if (0x000001bb == current->avp_code) {
-            printf("********************************Found avp code for sub data id\n");
-        }
+                  printf("********************************Found Subscription-Id AVP\n");
+
+                  // Parse nested AVPs inside Subscription-Id
+                  if (current->data != NULL && current->data_length > 0) {
+                      const uint8_t *nested_data = current->data;
+                      int nested_remaining = current->data_length;
+                      uint8_t subscription_id_type = 0;
+                      char imsi[16] = {0};
+                      bool found_imsi = false;
+                      bool found_type = false;
+
+                      while (nested_remaining >= 8) {
+                          // Read nested AVP code
+                          uint32_t nested_avp_code = (nested_data[0] << 24) | (nested_data[1] << 16) | (nested_data[2] << 8) | nested_data[3];
+                          nested_data += 4;
+                          nested_remaining -= 4;
+
+                          // Read flags
+                          uint8_t nested_flags = *nested_data++;
+                          nested_remaining--;
+
+                          // Read length (3 bytes)
+                          uint32_t nested_length = read_avp_length(nested_data);
+                          nested_data += 3;
+                          nested_remaining -= 3;
+
+                          if (nested_length > nested_remaining + 8) {
+                              break;
+                          }
+
+                          // Handle Vendor-ID if present
+                          uint32_t nested_header_size = 8;
+                          if (nested_flags & 0x80) {
+                              if (nested_remaining < 4) break;
+                              nested_data += 4;
+                              nested_remaining -= 4;
+                              nested_header_size = 12;
+                          }
+
+                          // Calculate nested data length
+                          uint32_t nested_data_length = nested_length - nested_header_size;
+                          if (nested_data_length > nested_remaining) {
+                              break;
+                          }
+
+                          // Process Subscription-Id-Type (0x000001c2)
+                          if (nested_avp_code == 0x000001c2 && nested_data_length >= 4) {
+                              subscription_id_type = (nested_data[0] << 24) | (nested_data[1] << 16) | (nested_data[2] << 8) | nested_data[3];
+                              found_type = true;
+                              printf("  Subscription-Id-Type: %u", subscription_id_type);
+                              switch(subscription_id_type) {
+                                  case 0: printf(" (END_USER_E164)\n"); break;
+                                  case 1: printf(" (END_USER_IMSI)\n"); break;
+                                  case 2: printf(" (END_USER_SIP_URI)\n"); break;
+                                  case 3: printf(" (END_USER_NAI)\n"); break;
+                                  case 4: printf(" (END_USER_PRIVATE)\n"); break;
+                                  default: printf(" (Unknown)\n"); break;
+                              }
+                          }
+
+                          // Process Subscription-Id-Data (0x000001bc) - IMSI
+                          if (nested_avp_code == 0x000001bc && nested_data_length > 0) {
+                              size_t imsi_len = nested_data_length;
+                              if (imsi_len > sizeof(imsi) - 1) {
+                                  imsi_len = sizeof(imsi) - 1;
+                              }
+                              memcpy(imsi, nested_data, imsi_len);
+                              imsi[imsi_len] = '\0';
+                              found_imsi = true;
+                              printf("  Subscription-Id-Data (IMSI): %s\n", imsi);
+
+                              // Check if this matches our target IMSI
+                              if (strcmp(imsi, IMSI_CAPTURE) == 0) {
+                                  printf("  >>> TARGET IMSI FOUND: %s <<<\n", imsi);
+                              }
+                          }
+
+                          // Move to next nested AVP
+                          nested_data += nested_data_length;
+                          nested_remaining -= nested_data_length;
+
+                          // Skip padding
+                          int padding = calculate_padding(nested_length);
+                          if (padding > 0 && padding <= nested_remaining) {
+                              nested_data += padding;
+                              nested_remaining -= padding;
+                          }
+                      }
+
+                      if (found_type && found_imsi && subscription_id_type == 1) {
+                          printf("  Valid IMSI Subscription: %s\n", imsi);
+                      }
+                  }
+              }
+
+
+
+
+
+//        if (0x000001bb == current->avp_code) {
+//            printf("********************************Found avp code for sub data id\n");
+//        }
 
 /// implement here
 
