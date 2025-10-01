@@ -23,24 +23,38 @@ struct eps_type_t {
 
 void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
 {
-    uint8_t byte0 = s1ap_data[0];
-    uint8_t message_type = s1ap_data[1];
-    uint8_t criticality = s1ap_data[2];
-
-    uint16_t len = 0x00;
-    uint32_t items = 0x00;
-    if (s1ap_data[3] == 0x80) {
-        len = (s1ap_data[3] << 8) | (s1ap_data[4] << 0);
-        len = htons(len);
-        items = (0x00 << 24) | (s1ap_data[5] << 16) | (s1ap_data[6] << 8) | (s1ap_data[7] << 0);
-    }else{
-        len = (0x00 << 8) | (s1ap_data[3] << 0);
-        items = (0x00 << 24) | (s1ap_data[4] << 16) | (s1ap_data[5] << 8) | (s1ap_data[6] << 0);
+    if (s1ap_length < 4) {
+        printf("Error: S1AP message too short\n");
+        return;
     }
 
-    printf("message_type: %d - criticality: 0x%2X - len: %d - message_len: %d - items: 0x%4X\n", message_type, criticality, len, s1ap_length, items);
+    uint8_t message_class = (s1ap_data[0] >> 6) & 0x03;
+    uint8_t procedure_code = s1ap_data[1];
+    uint8_t criticality = s1ap_data[2];
 
-}
+    // Parse length field (ASN.1 PER)
+    int idx = 3;
+    uint32_t length = 0;
+
+    if (s1ap_data[idx] & 0x80) {
+        // Multi-byte length
+        uint8_t length_bytes = s1ap_data[idx] & 0x7F;
+        idx++;
+
+        for (int i = 0; i < length_bytes && idx < s1ap_length; i++) {
+            length = (length << 8) | s1ap_data[idx++];
+        }
+    } else {
+        // Single-byte length
+        length = s1ap_data[idx++];
+    }
+
+    uint32_t items_size = s1ap_length - idx;
+
+    printf("message_type: %d - criticality: 0x%02X - len: %u - message_len: %d - items_size: %u bytes ",
+           procedure_code, criticality, length, s1ap_length, items_size);
+
+    printf("Items start at offset: %d, Total IEs data: %u bytes\n", idx, items_size);}
 
 int is_s1ap_packet(const unsigned char *packet, int length, bool* is_retrans)
 {
