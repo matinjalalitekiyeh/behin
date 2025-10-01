@@ -1,0 +1,275 @@
+#include "pfcp_packet_parser.h"
+#include "ue_imsi.h"
+
+// PFCP Header structures according to 3GPP TS 29.244
+typedef struct __attribute__((packed)) pfcp_header_base_s {
+    uint8_t flags;
+    uint8_t message_type;
+    uint16_t message_length;
+} pfcp_header_base_t;
+
+typedef struct __attribute__((packed)) pfcp_header_with_seid_s {
+    pfcp_header_base_t base;
+    uint64_t seid;
+    uint32_t sequence_number;
+    uint8_t message_priority;
+} pfcp_header_with_seid_t;
+
+typedef struct __attribute__((packed)) pfcp_header_without_seid_s {
+    pfcp_header_base_t base;
+    uint32_t sequence_number;
+    uint8_t message_priority;
+} pfcp_header_without_seid_t;
+
+// PFCP Message Types
+#define PFCP_HEARTBEAT_REQUEST 1
+#define PFCP_HEARTBEAT_RESPONSE 2
+
+#if __BIG_ENDIAN__
+# define htonll(x) (x)
+# define ntohll(x) (x)
+#else
+# define htonll(x) (((uint64_t)htonl((x) & 0xFFFFFFFF) << 32) | htonl((x) >> 32))
+# define ntohll(x) (((uint64_t)ntohl((x) & 0xFFFFFFFF) << 32) | ntohl((x) >> 32))
+#endif
+
+
+uint64_t seids[1024 * 4];
+uint32_t seids_count = 0;
+bool is_seid = false;
+bool parse_all_ies_recursive(const uint8_t *data, int length, uint64_t message_seid) {
+    //    printf("Total IEs length: %d\n", length);
+
+    is_seid = false;
+
+    data++;length--;
+    const uint8_t *current = data;
+    const uint8_t *end = data + length;
+
+    while (current < end) {
+        // Check if we have enough data for IE header (4 bytes: 2 type + 2 length)
+        if (current + 4 > end) {
+//            printf("Not enough data for IE header. Remaining: %ld bytes\n", (long)(end - current));
+            break;
+        }
+
+        // Parse IE header - PFCP IE format: 2 bytes type, 2 bytes length (big-endian)
+        uint16_t ie_type = (current[0] << 8) | current[1];
+        uint16_t ie_length = (current[2] << 8) | current[3];
+        ie_length = htons(ie_length);
+        ie_length = htons(ie_length);
+
+        //        printf("IE Type: ");
+        //        for (int i = 0 ; i < 50; i++) {
+        //            printf("0x%02X ", current[i]);
+        //        }
+        //        printf("\n\n");
+//        printf("type: 0x%04X (%d) -- Len: %d\n", ie_type, ie_type, ie_length);
+
+        if (ie_type == 141) {
+            //            printf("***************************************FOUND: ie_type is user_id\n");
+            uint8_t *imsi_ptr =  current + 6;
+            char imsi_str[16] = {0};
+            parse_imsi_simple(imsi_ptr, 16, imsi_str);
+            if (strcmp(imsi_str, "999990123456780") == 0) {
+                printf("*************************FOUND MATCH %s: \n",imsi_str );
+                is_seid = true;
+            }else {
+                seids_count--;
+
+            }
+
+        }
+
+
+        if (ie_type == 57) {  // F-SEID IE
+            // F-SEID structure:
+            // - 1 byte: flags (SEID presence indicator)
+            // - 6 bytes: IPv4 address (if present)
+            // - 16 bytes: IPv6 address (if present)
+            // - 8 bytes: SEID value
+
+            if (ie_length >= 9) {  // Minimum: 1 byte flags + 8 bytes SEID
+                const uint8_t *ie_value = current + 4;
+                uint8_t flags = ie_value[0];
+
+                int offset = 1;  // Skip flags byte
+
+                // Check if SEID is present (bit 0 of flags)
+                if (flags & 0x01) {
+                    // Parse SEID (8 bytes, big-endian)
+                    uint64_t f_seid = 0;
+
+                    // Correct way to parse 8-byte big-endian value
+                    for (int i = 0; i < 8; i++) {
+                        f_seid = (f_seid << 8) | ie_value[offset + i];
+                    }
+
+//                    if (is_seid) {
+
+                                bool is_consist_array = true;
+                                for (int i = 0; i < seids_count; i++) {
+                                    if (seids[i] == f_seid)
+                                        is_consist_array = false;
+                                }
+                                if (is_consist_array)
+                                seids[seids_count++] = f_seid;
+//                        printf("----------------------------------FUCK----------------------------------\n");
+//                    }
+
+
+
+
+
+//                    printf("******************************message SEID: 0x%016lX -- F_SEID: 0x%016lX (%lu)\n", message_seid, f_seid, f_seid);
+                } else {
+//                    printf("******************************F_SEID: SEID not present in F-SEID IE   --> message SEID: 0x%016lX \n", message_seid);
+                }
+            } else {
+//                printf("******************************F_SEID: IE too short, expected at least 9 bytes, got %d\n", ie_length);
+            }
+        }
+
+
+        // Check if we have enough data for the IE value
+        if (current + 4 + ie_length > end) {
+            printf("INCOMPLETE IE - needs %d, has %ld\n", ie_length, (long)(end - current - 4));
+            break;
+        }
+
+        // Move to next IE
+        current += 4 + ie_length;
+    }
+
+    return is_seid;
+}
+
+int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans) {
+    *is_retrans = false;
+
+    // Minimum size check for Ethernet + IP + UDP + GTPv2 header
+    if (length < (int)(sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr) + sizeof(pfcp_header_base_t))) {
+        return 0;
+    }
+
+    // Check Ethernet type (IP)
+    struct ethhdr *eth = (struct ethhdr *)packet;
+    if (ntohs(eth->h_proto) != ETH_P_IP) {
+        return 0;
+    }
+
+    // Check IP protocol (UDP)
+    struct iphdr *ip = (struct iphdr *)(packet + sizeof(struct ethhdr));
+    if (ip->protocol != IPPROTO_UDP) {
+        return 0;
+    }
+
+    // Check IP header length
+    int ip_header_len = ip->ihl * 4;
+    if (length < (int)(sizeof(struct ethhdr) + ip_header_len + sizeof(struct udphdr))) {
+        return 0;
+    }
+
+    // Get UDP header
+    struct udphdr *udp = (struct udphdr *)(packet + sizeof(struct ethhdr) + ip_header_len);
+
+    // Check if it's GTPv2 port (2123)
+    char src_ip[INET_ADDRSTRLEN], dst_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(ip->saddr), src_ip, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &(ip->daddr), dst_ip, INET_ADDRSTRLEN);
+
+    if((strcmp(src_ip, TARGET_CLIENT_IP) == 0) && (strcmp(dst_ip, TARGET_SERVER_IP) == 0) ||
+            (strcmp(src_ip, TARGET_SERVER_IP) == 0) && (strcmp(dst_ip, TARGET_CLIENT_IP) == 0)) {
+    } else {
+        return 0;
+    }
+
+    if (ntohs(udp->dest) != PFCP_PORT && ntohs(udp->source) != PFCP_PORT) {
+        return 0;
+    }
+
+    // Calculate UDP payload length
+    int udp_header_len = sizeof(struct udphdr);
+    int udp_payload_len = ntohs(udp->len) - udp_header_len;
+
+    // Check if we have enough data for GTPv2 header
+    if (udp_payload_len < (int)sizeof(pfcp_header_base_t)) {
+        return 0;
+    }
+
+    // Parse PFCP base header
+    pfcp_header_base_t *base_header = (pfcp_header_base_t *)(packet + sizeof(struct ethhdr) + ip_header_len + udp_header_len);
+
+    // Check if this is a heartbeat message and ignore it
+    if (base_header->message_type == PFCP_HEARTBEAT_REQUEST ||
+            base_header->message_type == PFCP_HEARTBEAT_RESPONSE) {
+        //           printf("Ignoring heartbeat message (Type: %d)\n", base_header->message_type);
+        return 0;
+    }
+
+    // Extract flags
+    uint8_t version = (base_header->flags >> 5) & 0x07;
+    uint8_t mp_flag = (base_header->flags >> 1) & 0x01;
+    uint8_t seid_present = base_header->flags & 0x01;
+
+    // Calculate header size
+    int pfcp_header_size = sizeof(pfcp_header_base_t);
+    if (seid_present) {
+        pfcp_header_size += 11; // SEID (8) + Sequence (3) + Spare (1)
+    } else {
+        pfcp_header_size += 4;  // Sequence (3) + Spare (1)
+    }
+    if (mp_flag) {
+        pfcp_header_size += 1;  // Message Priority
+    }
+
+    // Calculate IEs data length
+    int pfcp_ies_length = udp_payload_len - pfcp_header_size;
+
+    //       printf("PFCP Message - Type: 0x%02X, Length: %u, Version: %d, MP: %d, SEID: %d\n",
+    //              base_header->message_type, ntohs(base_header->message_length),
+    //              version, mp_flag, seid_present);
+
+    bool cap_this = false;
+
+
+    if (pfcp_ies_length > 0) {
+        const unsigned char *ies_data = (const unsigned char *)(packet + sizeof(struct ethhdr) + ip_header_len + udp_header_len + pfcp_header_size);
+
+        // Parse SEID and Sequence Number if present
+
+        uint64_t seid_ = 0x00;
+        if (seid_present) {
+            pfcp_header_with_seid_t *header = (pfcp_header_with_seid_t *)base_header;
+            uint64_t seid = be64toh(header->seid);
+            uint32_t seq_num = ntohl(header->sequence_number) >> 8;
+            seid_ = seid;
+            //               ies_data += sizeof(pfcp_header_with_seid_t);
+            //               printf("SEID: 0x%016lX, Sequence: %u\n", seid, seq_num);
+        } else {
+            pfcp_header_without_seid_t *header = (pfcp_header_without_seid_t *)base_header;
+            uint32_t seq_num = ntohl(header->sequence_number) >> 8;
+            //               ies_data += sizeof(pfcp_header_without_seid_t);
+            //               printf("Sequence: %u\n", seq_num);
+        }
+
+//        printf("\n=== ====================== ===\n");
+        bool is_should_get = parse_all_ies_recursive(ies_data, pfcp_ies_length, seid_);
+
+        if (is_should_get) {
+            cap_this = true;
+//            printf("DUCK IT++++++++++++++++++++++++++\n\n\n\n");
+        }
+
+//        printf("counter : %d", seids_count);
+        for (int i = 0; i < seids_count; i++) {
+//            printf("++++++ SEID:%d:) %d\n", i, seids[i]);
+                        if (seid_ == seids[i] || is_seid) {
+                            cap_this = true;
+                        }
+        }
+        //           printf("=== Finished IE Parsing ===\n\n");
+    }
+
+    return cap_this ? 1 : 0;
+}
