@@ -37,7 +37,7 @@ typedef struct __attribute__((packed)) pfcp_header_without_seid_s {
 uint64_t seids[1024 * 4];
 uint32_t seids_count = 0;
 bool is_seid = false;
-void parse_all_ies_recursive(const uint8_t *data, int length, uint64_t message_seid) {
+bool parse_all_ies_recursive(const uint8_t *data, int length, uint64_t message_seid) {
     //    printf("Total IEs length: %d\n", length);
 
     is_seid = false;
@@ -49,7 +49,7 @@ void parse_all_ies_recursive(const uint8_t *data, int length, uint64_t message_s
     while (current < end) {
         // Check if we have enough data for IE header (4 bytes: 2 type + 2 length)
         if (current + 4 > end) {
-            printf("Not enough data for IE header. Remaining: %ld bytes\n", (long)(end - current));
+//            printf("Not enough data for IE header. Remaining: %ld bytes\n", (long)(end - current));
             break;
         }
 
@@ -64,7 +64,7 @@ void parse_all_ies_recursive(const uint8_t *data, int length, uint64_t message_s
         //            printf("0x%02X ", current[i]);
         //        }
         //        printf("\n\n");
-        printf("type: 0x%04X (%d) -- Len: %d\n", ie_type, ie_type, ie_length);
+//        printf("type: 0x%04X (%d) -- Len: %d\n", ie_type, ie_type, ie_length);
 
         if (ie_type == 141) {
             //            printf("***************************************FOUND: ie_type is user_id\n");
@@ -72,8 +72,10 @@ void parse_all_ies_recursive(const uint8_t *data, int length, uint64_t message_s
             char imsi_str[16] = {0};
             parse_imsi_simple(imsi_ptr, 16, imsi_str);
             if (strcmp(imsi_str, "999990123456780") == 0) {
-                //                printf("*************************FOUND MATCH: \n");
+                printf("*************************FOUND MATCH %s: \n",imsi_str );
                 is_seid = true;
+            }else {
+                seids_count--;
 
             }
 
@@ -103,37 +105,28 @@ void parse_all_ies_recursive(const uint8_t *data, int length, uint64_t message_s
                         f_seid = (f_seid << 8) | ie_value[offset + i];
                     }
 
+//                    if (is_seid) {
 
-
-                    bool is_consist_array = true;
-
-                    if (is_seid) {
-                        for (int i = 0; i < seids_count; i++) {
-                            if (seids[i] == f_seid)
-                                is_consist_array = false;
-                        }
-                        if (is_consist_array)
-                        seids[seids_count++] = f_seid;
-                    } else {
-
-                        for (int i = 0; i < seids_count; i++) {
-                            if (seids[i] == message_seid) {
+                                bool is_consist_array = true;
                                 for (int i = 0; i < seids_count; i++) {
                                     if (seids[i] == f_seid)
                                         is_consist_array = false;
                                 }
                                 if (is_consist_array)
                                 seids[seids_count++] = f_seid;
-                            }
-                        }
-                    }
+//                        printf("----------------------------------FUCK----------------------------------\n");
+//                    }
 
-                    printf("******************************message SEID: 0x%016lX -- F_SEID: 0x%016lX (%lu)\n", message_seid, f_seid, f_seid);
+
+
+
+
+//                    printf("******************************message SEID: 0x%016lX -- F_SEID: 0x%016lX (%lu)\n", message_seid, f_seid, f_seid);
                 } else {
-                    printf("******************************F_SEID: SEID not present in F-SEID IE   --> message SEID: 0x%016lX \n", message_seid);
+//                    printf("******************************F_SEID: SEID not present in F-SEID IE   --> message SEID: 0x%016lX \n", message_seid);
                 }
             } else {
-                printf("******************************F_SEID: IE too short, expected at least 9 bytes, got %d\n", ie_length);
+//                printf("******************************F_SEID: IE too short, expected at least 9 bytes, got %d\n", ie_length);
             }
         }
 
@@ -147,6 +140,8 @@ void parse_all_ies_recursive(const uint8_t *data, int length, uint64_t message_s
         // Move to next IE
         current += 4 + ie_length;
     }
+
+    return is_seid;
 }
 
 int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans) {
@@ -258,12 +253,17 @@ int is_gtpv2_traffic(const unsigned char *packet, int length, bool* is_retrans) 
             //               printf("Sequence: %u\n", seq_num);
         }
 
-        printf("\n=== ====================== ===\n");
-        parse_all_ies_recursive(ies_data, pfcp_ies_length, seid_);
+//        printf("\n=== ====================== ===\n");
+        bool is_should_get = parse_all_ies_recursive(ies_data, pfcp_ies_length, seid_);
 
+        if (is_should_get) {
+            cap_this = true;
+//            printf("DUCK IT++++++++++++++++++++++++++\n\n\n\n");
+        }
 
+//        printf("counter : %d", seids_count);
         for (int i = 0; i < seids_count; i++) {
-//            printf("++++++ TEID:%d:) %d\n", i, teids[i]);
+//            printf("++++++ SEID:%d:) %d\n", i, seids[i]);
                         if (seid_ == seids[i] || is_seid) {
                             cap_this = true;
                         }
