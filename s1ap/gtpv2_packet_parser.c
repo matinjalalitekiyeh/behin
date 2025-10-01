@@ -26,11 +26,19 @@ void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
     uint8_t byte0 = s1ap_data[0];
     uint8_t message_type = s1ap_data[1];
     uint8_t criticality = s1ap_data[2];
-    uint8_t len = s1ap_data[3];
 
-    uint32_t items= (0x00 << 24) | (s1ap_data[4] << 16) | (s1ap_data[5] << 8) | (s1ap_data[6] << 0);
+    uint16_t len = 0x00;
+    uint32_t items = 0x00;
+    if (s1ap_data[3] == 0x80) {
+        len = (s1ap_data[3] << 8) | (s1ap_data[4] << 0);
+        len = htons(len);
+        items = (0x00 << 24) | (s1ap_data[5] << 16) | (s1ap_data[6] << 8) | (s1ap_data[7] << 0);
+    }else{
+        len = (0x00 << 8) | (s1ap_data[3] << 0);
+        items = (0x00 << 24) | (s1ap_data[4] << 16) | (s1ap_data[5] << 8) | (s1ap_data[6] << 0);
+    }
 
-    printf("message_type: %d - criticality: %d - len: %d - message_len: %d - items: %d\n", message_type, criticality, len, s1ap_length, items);
+    printf("message_type: %d - criticality: 0x%2X - len: %d - message_len: %d - items: 0x%4X\n", message_type, criticality, len, s1ap_length, items);
 
 }
 
