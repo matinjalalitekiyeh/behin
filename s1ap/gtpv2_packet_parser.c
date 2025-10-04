@@ -21,6 +21,12 @@ typedef struct  {
 }eps_type_t;
 
 
+uint32_t enb_ue_ids[1024 * 4];
+uint32_t mme_ue_ids[1024 * 4];
+uint32_t enb_ue_id_count = 0;
+uint32_t mme_ue_id_count = 0;
+
+
 void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
 {
     if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0c && s1ap_data[2] == 0x40) {
@@ -34,6 +40,7 @@ void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
                 break;
             }
         }
+                    uint32_t enb_ue_s1ap_id = 0x00;
 
         uint16_t protocol_field = htons( *(uint16_t*)&s1ap_data[idx] );
         //        std::cout << "protocol_field: " << protocol_field << std::endl;
@@ -43,7 +50,7 @@ void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
             uint16_t enb_ue_s1ap_id_len = htons( *(uint16_t*)&s1ap_data[len_idx] );
 
             const int enb_idx = len_idx + (int)(sizeof (uint16_t));
-            uint32_t enb_ue_s1ap_id = 0x00;
+
             memcpy(&enb_ue_s1ap_id, &s1ap_data[enb_idx], enb_ue_s1ap_id_len);
 
 
@@ -98,11 +105,16 @@ void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
             memcpy(&tmsi, &s1ap_data[idx2 + 16], sizeof(uint32_t));
             tmsi = htonl(tmsi);
             printf("tmsi: %d\n", tmsi);
+            if (enb_ue_s1ap_id != 0x00)
+                enb_ue_ids[enb_ue_id_count] = enb_ue_s1ap_id;
         } else if (type == 1) {
 //            char imsi_str[16] = {0};
             long long imsi = imsi_direct_to_long_long(&s1ap_data[idx2 + 9]);
 //            parse_imsi_simple(&s1ap_data[idx2 + 9], 16, imsi_str);
             printf("imsi: %llu\n", imsi);
+
+            if (enb_ue_s1ap_id != 0x00)
+                enb_ue_ids[enb_ue_id_count] = enb_ue_s1ap_id;
         }
 
 
@@ -235,7 +247,6 @@ void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
 //                enb_ue_s1ap_id_ = htonl(enb_ue_s1ap_id_);
 //            }
 
-//            printf("\n FUCK*********** ENB UE S1AP ID: %d\n", enb_ue_s1ap_id_);
 
 //            std::cout << "\n *********** ENB UE S1AP ID: " << enb_ue_s1ap_id  << '\n' << std::endl;
 
