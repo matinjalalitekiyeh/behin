@@ -68,4 +68,4 @@ sock_res_t socket_create_raw(sock_context_t *ctx);
  */
 sock_res_t socket_receive_packet(sock_context_t *ctx, ssize_t *data_len);
 
-#endif // SOCKET_MODULE_H
+#endif /* SOCKET_MODULE_H */

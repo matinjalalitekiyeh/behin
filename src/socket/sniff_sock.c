@@ -13,7 +13,8 @@
  *   - SOCKET_ERROR_INVALID_PARAM: Invalid context pointer
  *   - SOCKET_ERROR_IO: Mutex operation failed
  */
-static sock_res_t lock_context(sock_context_t *ctx) {
+static sock_res_t lock_context(sock_context_t *ctx)
+{
     if (!ctx) return SOCKET_ERROR_INVALID_PARAM;
 
     if (pthread_mutex_lock(&ctx->lock) != 0) {
@@ -35,7 +36,8 @@ static sock_res_t lock_context(sock_context_t *ctx) {
  *   - SOCKET_ERROR_INVALID_PARAM: Invalid context pointer
  *   - SOCKET_ERROR_IO: Mutex operation failed
  */
-static sock_res_t unlock_context(sock_context_t *ctx) {
+static sock_res_t unlock_context(sock_context_t *ctx)
+{
     if (!ctx) return SOCKET_ERROR_INVALID_PARAM;
 
     if (pthread_mutex_unlock(&ctx->lock) != 0) {
@@ -54,7 +56,8 @@ static sock_res_t unlock_context(sock_context_t *ctx) {
  * Context: Can be called from any context, non-blocking
  * Return: true if socket is ready, false otherwise
  */
-static bool is_socket_ready(const sock_context_t *ctx) {
+static bool is_socket_ready(const sock_context_t *ctx)
+{
     return ctx && (ctx->sockfd >= 0);
 }
 
