@@ -1,7 +1,7 @@
 #include "diameter_packet_parser.h"
 
-#define TARGET_CLIENT_IP "127.0.0.2"
-#define TARGET_SERVER_IP "127.0.0.8"
+#define TARGET_CLIENT_IP "192.168.0.186"
+#define TARGET_SERVER_IP "192.168.0.180"
 #define OGS_DIAM_S6A_CMD_CODE_UPDATE_LOCATION               316
 #define OGS_DIAM_S6A_CMD_CODE_CANCEL_LOCATION               317
 #define OGS_DIAM_S6A_CMD_CODE_AUTHENTICATION_INFORMATION    318
@@ -189,7 +189,7 @@ static void print_parent_avps(diam_avp_t *parent_avps, uint32_t end_id, uint32_t
                 memcpy(content_str, current->data, current->data_length);
                 content_str[current->data_length] = '\0';
 
-                if (strcmp(content_str, "999990123456780") == 0) {
+                if (strcmp(content_str, "999700000000005") == 0) {
                     printf("match\n");
                     is_cap = true;
                     s_end_id[s_user_cnt] = end_id;
@@ -343,13 +343,13 @@ int is_diam_packet(const unsigned char *packet, int length, bool *is_retrans)
                         }
 
                         // Store this message in recent messages (if not retransmission)
-                        if (!(*is_retrans)) {
-                            recent_hop_ids[current_index] = current_hop_id;
-                            recent_end_ids[current_index] = current_end_id;
-                            current_index = (current_index + 1) % MAX_RECENT_MSGS;
+                        //if (!(*is_retrans)) {
+                          //  recent_hop_ids[current_index] = current_hop_id;
+                            //recent_end_ids[current_index] = current_end_id;
+                            //current_index = (current_index + 1) % MAX_RECENT_MSGS;
 
                             parse_diam_message(diameter_data, diam_payload_length);
-                        }
+                        //}
                     }
                 }
             }
