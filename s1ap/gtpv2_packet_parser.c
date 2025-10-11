@@ -26,13 +26,10 @@ uint32_t mme_ue_ids[1024 * 4];
 uint32_t enb_ue_id_count = 0;
 uint32_t mme_ue_id_count = 0;
 
-/*!
- * \brief initial_ue_message this function parse initialize
- * message from s1ap
- * \param message
- * \param len
- * \return
- */
+
+uint32_t counter_mme  = 0;
+uint32_t counter_enb  = 0;
+
 static uint32_t get_enb_ue_id(const uint8_t* message, int len)
 {
     if (len < 4) return 0;
@@ -43,10 +40,12 @@ static uint32_t get_enb_ue_id(const uint8_t* message, int len)
     for (int i = 0; i < len - 2; i++) {
         if (message[i] == 0x00 && message[i+1] == 0x08) {
             idx = i;
-            break;
+            counter_enb++;
+            //            break;
         }
     }
 
+    //    return 0;
     uint16_t protocol_field = htons( *(uint16_t*)&message[idx] );
     /*id-eNB-UE-S1AP-ID*/
     if (protocol_field == 0x0008) {
@@ -77,34 +76,50 @@ static uint32_t get_mme_ue_id(const uint8_t* message, int len)
 
     uint32_t mme_ue_s1ap_id = 0x00;
 
+    int indexes[20];
+    //    int count = 0;
+
     int idx = 0;
     for (int i = 0; i < len - 4; i++) {
-        if (message[i] == 0x00 && message[i+1] == 0x00 && message[i+2] == 0x00) {
+        if (message[i] == 0x00 && message[i+1] == 0x00 && ((message[i+2] == 0x40)||(message[i+2] == 0x00)) ) {
             idx = i;
-            break;
+            indexes[counter_mme] = i;
+            counter_mme++;
+            printf("index: %d\n", i);
+            //            break;
         }
     }
-    uint16_t protocol_field = htons( *(uint16_t*)&message[idx] );
+
+    for (int j = 0; j < counter_mme; j++) {
+        idx = indexes[j];
+
+        uint16_t protocol_field = htons( *(uint16_t*)&message[idx] );
+
+        /*id-MME-UE-S1AP-ID*/
+        if (protocol_field == 0x0000) {
+            const int len_idx = idx + (int)(sizeof (uint16_t)) + 1;
+            uint16_t mme_ue_s1ap_id_len = ( *(uint16_t*)&message[len_idx] );
 
 
-    /*id-MME-UE-S1AP-ID*/
-    if (protocol_field == 0x0000) {
-        const int len_idx = idx + (int)(sizeof (uint16_t));
-        uint16_t mme_ue_s1ap_id_len = htons( *(uint16_t*)&message[len_idx] );
+            printf("fuck  len: %d \n\n", mme_ue_s1ap_id_len);
+            if (mme_ue_s1ap_id_len > 4) {
+                continue;
+            }
 
-        if (mme_ue_s1ap_id_len > 4)
-            return 0x00;
+            const int enb_idx = len_idx + (int)(sizeof (uint8_t));
+            memcpy(&mme_ue_s1ap_id, &message[enb_idx], mme_ue_s1ap_id_len);
 
-        const int enb_idx = len_idx + (int)(sizeof (uint16_t));
-        memcpy(&mme_ue_s1ap_id, &message[enb_idx], mme_ue_s1ap_id_len);
-
-        /*TODO(matin): fix size using len*/
-        if (mme_ue_s1ap_id_len == 2) {
-            /*implicit conversion loses integer precision*/
-            mme_ue_s1ap_id = htons(mme_ue_s1ap_id);
-        } else if (mme_ue_s1ap_id_len == 4) {
-            mme_ue_s1ap_id = htonl(mme_ue_s1ap_id);
+            /*TODO(matin): fix size using len*/
+            if (mme_ue_s1ap_id_len == 2) {
+                /*implicit conversion loses integer precision*/
+                mme_ue_s1ap_id = htons(mme_ue_s1ap_id);
+            } else if (mme_ue_s1ap_id_len == 4) {
+                mme_ue_s1ap_id = htonl(mme_ue_s1ap_id);
+            }
         }
+
+
+//                printf("%d) fuck mme_id: %d\n", j, mme_ue_s1ap_id);
     }
 
     return mme_ue_s1ap_id;
@@ -113,7 +128,7 @@ static uint32_t get_mme_ue_id(const uint8_t* message, int len)
 static void nas_pdu(const uint8_t *message, int len, uint32_t enb_ue_s1ap_id) {
     int idx = 0;
     for (int i = 0; i < len - 3; i++) {
-        if (message[i] == 0x00 && message[i+1] == 0x1a && message[i+2] == 0x00) {
+        if (message[i] == 0x00 && message[i+1] == 0x1a) {
             idx = i;
             break;
         }
@@ -126,13 +141,13 @@ static void nas_pdu(const uint8_t *message, int len, uint32_t enb_ue_s1ap_id) {
         idx += 6;
     }
 
-//    uint8_t nas_eps_mobility_management_message_type = *(uint8_t*)&message[idx + 6];
-//    memcpy(&nas_eps_mobility_management_message_type, &message[idx + 6], sizeof(uint8_t));
-//    if (nas_eps_mobility_management_message_type == 0x41) {
-        //            std::cout << "nas_eps_mobility_management_message_type 0x41" << nas_eps_mobility_management_message_type << std::endl;
-//    }else if (nas_eps_mobility_management_message_type == 0x48) {
-        //            std::cout << "nas_eps_mobility_management_message_type 0x48" << nas_eps_mobility_management_message_type << std::endl;
-//    }
+    //    uint8_t nas_eps_mobility_management_message_type = *(uint8_t*)&message[idx + 6];
+    //    memcpy(&nas_eps_mobility_management_message_type, &message[idx + 6], sizeof(uint8_t));
+    //    if (nas_eps_mobility_management_message_type == 0x41) {
+    //            std::cout << "nas_eps_mobility_management_message_type 0x41" << nas_eps_mobility_management_message_type << std::endl;
+    //    }else if (nas_eps_mobility_management_message_type == 0x48) {
+    //            std::cout << "nas_eps_mobility_management_message_type 0x48" << nas_eps_mobility_management_message_type << std::endl;
+    //    }
 
     /* ignore 7 byte (not important messsage for trace) */
 
@@ -160,8 +175,13 @@ void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
     uint32_t enb_ue_s1ap_id = 0x00;
     uint32_t mme_ue_s1ap_id = 0x00;
 
+    uint32_t procedure_code = *(uint32_t*)&s1ap_data[0];
+
+    if (procedure_code != 0x22000920)
+        return;
+
     /*check for init-ue-message*/
-    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0c && s1ap_data[2] == 0x40) {
+    if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0c) {
         enb_ue_s1ap_id = get_enb_ue_id(s1ap_data, s1ap_length);
 
         mme_ue_s1ap_id = get_mme_ue_id(s1ap_data, s1ap_length);
@@ -173,7 +193,10 @@ void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
         mme_ue_s1ap_id = get_mme_ue_id(s1ap_data, s1ap_length);
     }
 
-    printf("Message s1ap: eNB-UE-S1AP-ID: %d - MME-UE-S1AP-ID: %d\n", enb_ue_s1ap_id, mme_ue_s1ap_id);
+//    uint32_t procedure_code = *(uint32_t*)&s1ap_data[0];
+    //    printf("0x%04X) mme_counter: %d - enb_counter: %d\n", procedure_code, counter_mme, counter_enb);
+    counter_mme = 0; counter_enb = 0;
+    printf("0x%04X) Message s1ap: eNB-UE-S1AP-ID: %d - MME-UE-S1AP-ID: %d\n", procedure_code, enb_ue_s1ap_id, mme_ue_s1ap_id);
 }
 
 int is_s1ap_packet(const unsigned char *packet, int length, bool* is_retrans)
