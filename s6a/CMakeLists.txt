@@ -1,11 +1,11 @@
 set(APP_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/main.c"
         "${CMAKE_CURRENT_SOURCE_DIR}/pcap_file_initialize.c"
-        "${CMAKE_CURRENT_SOURCE_DIR}/diameter_packet_parser.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/s6a_packet_parser.c"
 )
 
 set(APP_HEADERS
-    "${CMAKE_CURRENT_SOURCE_DIR}/diameter_packet_parser.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/s6a_packet_parser.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/pcap_file_initialize.h"
     )
 
