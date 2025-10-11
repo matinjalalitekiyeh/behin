@@ -53,7 +53,16 @@ static uint32_t get_enb_ue_id(const uint8_t* message, int len)
 
         /*id-eNB-UE-S1AP-ID*/
         if (protocol_field == 0x0008) {
-            const int len_idx = idx + 3;//(int)(sizeof (uint16_t));
+
+            uint8_t check_criticality = ( *(uint8_t*)&message[(idx + 2)] );
+
+            int len_idx = 0;
+            if ((check_criticality == 0x40) || (check_criticality == 0x00) || (check_criticality == 0x80)) {
+                len_idx = idx + 3;
+            } else {
+                len_idx = idx + 2;
+            }
+
             uint8_t enb_ue_s1ap_id_len = ( *(uint8_t*)&message[len_idx] );
 
             if ((enb_ue_s1ap_id_len > 4) || (enb_ue_s1ap_id_len == 0)) {
@@ -103,7 +112,7 @@ static uint32_t get_mme_ue_id(const uint8_t* message, int len)
             uint8_t check_criticality = ( *(uint8_t*)&message[(idx + 2)] );
 
             int len_idx = 0;
-            if ((check_criticality == 0x40) || (check_criticality == 0x00)) {
+            if ((check_criticality == 0x40) || (check_criticality == 0x00) || (check_criticality == 0x80)) {
                 len_idx = idx + 3;
             } else {
                 len_idx = idx + 2;
