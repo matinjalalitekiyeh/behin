@@ -1,11 +1,11 @@
 set(APP_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/main.c"
-        "${CMAKE_CURRENT_SOURCE_DIR}/gtpv2_packet_parser.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/s1ap_packet_parser.c"
         "${CMAKE_CURRENT_SOURCE_DIR}/pcap_file_initialize.c"
 )
 
 set(APP_HEADERS
-    "${CMAKE_CURRENT_SOURCE_DIR}/gtpv2_packet_parser.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/s1ap_packet_parser.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/pcap_file_initialize.h"
     )
 

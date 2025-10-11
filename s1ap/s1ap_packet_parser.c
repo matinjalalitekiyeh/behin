@@ -86,23 +86,6 @@ static uint32_t get_mme_ue_id(const uint8_t* message, int len)
 
     uint32_t mme_ue_s1ap_id = 0x00;
 
-
-//    int indx = 0;
-//    for (int i = 0; i < len - 4; i++) {
-//        if (message[i] == 0x00 && message[i+1] == 0x63) {
-//            indx = i;
-//        }
-//    }
-//    uint8_t check_criticality_99 = ( *(uint8_t*)&message[(indx + 2)] );
-//    int idx99 = 0;
-//    if ((check_criticality_99 == 0x40) || (check_criticality_99 == 0x00) || (check_criticality_99 == 0x80)) {
-//        idx99 = indx + 3;
-//    } else {
-//        idx99 = indx + 2;
-//    }
-//    uint8_t len99 = ( *(uint8_t*)&message[idx99] );
-
-
     int indexes[20];
     int idx = 0;
     for (int i = 0; i < len - 4; i++) {
@@ -130,8 +113,6 @@ static uint32_t get_mme_ue_id(const uint8_t* message, int len)
                 len_idx = idx + 2;
             }
 
-
-            //            const int len_idx = idx + 3;//(int)(sizeof (uint16_t));
             uint8_t mme_ue_s1ap_id_len = ( *(uint8_t*)&message[len_idx] );
 
             if ((mme_ue_s1ap_id_len > 4) || (mme_ue_s1ap_id_len == 0)) {
