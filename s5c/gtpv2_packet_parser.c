@@ -21,35 +21,6 @@ typedef struct __attribute__((packed)) {
     uint8_t is_ipv4 : 1;
 } teid_t;
 
-void parse_fteid_ie(const uint8_t *data, uint16_t length) {
-    //    if (length < 2) {
-    //        printf("  F-TEID: Invalid length %d (min 2 bytes required)\n", length);
-    //        return;
-    //    }
-
-    //    struct fteid_ie fteid = {0};
-    //    const uint8_t *current = data;
-
-    //    // Parse interface type
-    //    fteid.interface_type = current[0];
-    //    printf("  F-TEID Interface Type: %u", fteid.interface_type);
-
-    //    // Map interface type to string
-    //    const char *interface_names[] = {
-    //        "S1-U eNodeB", "S1-U SGW", "S12 RNC", "S12 SGW", "S5/S8-U SGW",
-    //        "S5/S8-U PGW", "S5/S8-U SGW (PMIP)", "S5/S8-U PGW (PMIP)", "S11-MME", "S11/S4 SGW"
-    //    };
-    //    if (fteid.interface_type < sizeof(interface_names)/sizeof(interface_names[0])) {
-    //        printf(" (%s)", interface_names[fteid.interface_type]);
-    //    }
-    //    printf("\n");
-
-    //    // Parse flags
-    //    fteid.teid_gre_key_flag = current[1];
-    //    printf("  F-TEID Flags: 0x%02X\n", fteid.teid_gre_key_flag);
-    //    printf("    TEID/GRE Key present: %u\n", (fteid.teid_gre_key));
-}
-
 uint32_t teids[1024 * 4];
 uint32_t teids_count = 0;
 bool is_teid = false;
