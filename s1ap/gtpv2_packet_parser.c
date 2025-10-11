@@ -7,18 +7,15 @@ static bool first_packet = true;
 #define TARGET_CLIENT_IP "127.0.0.2"
 #define TARGET_SERVER_IP "127.0.1.1"
 
-typedef struct  {
-    uint8_t msb:4;
-    uint8_t lsb:4;
-}data_t;
 
 
-typedef struct  {
-    uint8_t attach_type : 3;
-    uint8_t spare_bit : 1;
-    uint8_t nas_key_set_identifier : 3;
-    uint8_t tsc : 1;
-}eps_type_t;
+
+//typedef struct  {
+//    uint8_t attach_type : 3;
+//    uint8_t spare_bit : 1;
+//    uint8_t nas_key_set_identifier : 3;
+//    uint8_t tsc : 1;
+//}eps_type_t;
 
 
 uint32_t enb_ue_ids[1024 * 4];
@@ -176,10 +173,15 @@ static void nas_pdu(const uint8_t *message, int len, uint32_t enb_ue_s1ap_id) {
         }
     }
 
-    data_t d;
-    memset(&d, 0, sizeof (data_t));
-    memcpy(&d, &message[idx + 5], sizeof(data_t));
-    if (d.lsb == 1) {
+    typedef struct  {
+        uint8_t protocol_discr:4;
+        uint8_t security_header:4;
+    }non_access_stream_t;
+
+    non_access_stream_t d;
+    memset(&d, 0, sizeof (non_access_stream_t));
+    memcpy(&d, &message[idx + 5], sizeof(non_access_stream_t));
+    if (d.security_header == 1) {
         idx += 6;
     }
 
@@ -228,15 +230,7 @@ typedef struct  {
 static
 ue_id_pair_t parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
 {
-
     ue_id_pair_t pair = {.enb_ue_s1ap_id = 0x00, .mme_ue_s1ap_id = 0x00};
-//    uint32_t enb_ue_s1ap_id = 0x00;
-//    uint32_t mme_ue_s1ap_id = 0x00;
-
-//    uint32_t procedure_code = *(uint32_t*)&s1ap_data[0];
-
-    //    if (procedure_code != 0x22000920)
-    //        return;
 
     /*check for init-ue-message*/
     if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0c) {
