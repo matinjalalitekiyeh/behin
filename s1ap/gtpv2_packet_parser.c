@@ -30,6 +30,14 @@ uint32_t mme_ue_id_count = 0;
 uint32_t counter_mme  = 0;
 uint32_t counter_enb  = 0;
 
+bool __init = false;
+
+__attribute__((constructor))
+void initialize(void) {
+    enb_ue_ids[enb_ue_id_count++] = 0;
+    mme_ue_ids[mme_ue_id_count++] = 99;
+}
+
 static uint32_t get_enb_ue_id(const uint8_t* message, int len)
 {
     if (len < 4) return 0;
@@ -71,7 +79,7 @@ static uint32_t get_enb_ue_id(const uint8_t* message, int len)
 
             idx = len_idx + 1;
             if (enb_ue_s1ap_id_len == 1) {
-               enb_ue_s1ap_id = message[idx];
+                enb_ue_s1ap_id = message[idx];
             } else if (enb_ue_s1ap_id_len == 2) {
                 enb_ue_s1ap_id = (message[idx] << 8) | (message[idx+1] << 0);
             } else if (enb_ue_s1ap_id_len == 3) {
@@ -90,6 +98,23 @@ static uint32_t get_mme_ue_id(const uint8_t* message, int len)
     if (len < 4) return 0;
 
     uint32_t mme_ue_s1ap_id = 0x00;
+
+
+//    int indx = 0;
+//    for (int i = 0; i < len - 4; i++) {
+//        if (message[i] == 0x00 && message[i+1] == 0x63) {
+//            indx = i;
+//        }
+//    }
+//    uint8_t check_criticality_99 = ( *(uint8_t*)&message[(indx + 2)] );
+//    int idx99 = 0;
+//    if ((check_criticality_99 == 0x40) || (check_criticality_99 == 0x00) || (check_criticality_99 == 0x80)) {
+//        idx99 = indx + 3;
+//    } else {
+//        idx99 = indx + 2;
+//    }
+//    uint8_t len99 = ( *(uint8_t*)&message[idx99] );
+
 
     int indexes[20];
     int idx = 0;
@@ -119,7 +144,7 @@ static uint32_t get_mme_ue_id(const uint8_t* message, int len)
             }
 
 
-//            const int len_idx = idx + 3;//(int)(sizeof (uint16_t));
+            //            const int len_idx = idx + 3;//(int)(sizeof (uint16_t));
             uint8_t mme_ue_s1ap_id_len = ( *(uint8_t*)&message[len_idx] );
 
             if ((mme_ue_s1ap_id_len > 4) || (mme_ue_s1ap_id_len == 0)) {
@@ -128,7 +153,7 @@ static uint32_t get_mme_ue_id(const uint8_t* message, int len)
 
             idx = len_idx + 1;
             if (mme_ue_s1ap_id_len == 1) {
-               mme_ue_s1ap_id = message[idx];
+                mme_ue_s1ap_id = message[idx];
             } else if (mme_ue_s1ap_id_len == 2) {
                 mme_ue_s1ap_id = (message[idx] << 8) | (message[idx+1] << 0);
             } else if (mme_ue_s1ap_id_len == 3) {
@@ -176,44 +201,65 @@ static void nas_pdu(const uint8_t *message, int len, uint32_t enb_ue_s1ap_id) {
         memcpy(&tmsi, &message[idx + 16], sizeof(uint32_t));
         tmsi = htonl(tmsi);
         printf("tmsi: %d\n", tmsi);
-        if (enb_ue_s1ap_id != 0x00)
+        if (enb_ue_s1ap_id != 0x00) {
             enb_ue_ids[enb_ue_id_count] = enb_ue_s1ap_id;
+            __init = true;
+        }
+
     } else if (type == 1) {
         long long imsi = imsi_direct_to_long_long(&message[idx + 9]);
         printf("imsi: %llu\n", imsi);
 
-        if (enb_ue_s1ap_id != 0x00)
-            enb_ue_ids[enb_ue_id_count] = enb_ue_s1ap_id;
+        if (enb_ue_s1ap_id != 0x00) {
+            if (imsi == 999990123456780) {
+                printf("FOUND IMSI: %llu\n", imsi);
+                enb_ue_ids[enb_ue_id_count] = enb_ue_s1ap_id;
+                __init = true;
+            }
+        }
     }
 }
 
-void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
+typedef struct  {
+    uint32_t enb_ue_s1ap_id;
+    uint32_t mme_ue_s1ap_id;
+} ue_id_pair_t;
+
+static
+ue_id_pair_t parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
 {
-    uint32_t enb_ue_s1ap_id = 0x00;
-    uint32_t mme_ue_s1ap_id = 0x00;
 
-    uint32_t procedure_code = *(uint32_t*)&s1ap_data[0];
+    ue_id_pair_t pair = {.enb_ue_s1ap_id = 0x00, .mme_ue_s1ap_id = 0x00};
+//    uint32_t enb_ue_s1ap_id = 0x00;
+//    uint32_t mme_ue_s1ap_id = 0x00;
 
-//    if (procedure_code != 0x22000920)
-//        return;
+//    uint32_t procedure_code = *(uint32_t*)&s1ap_data[0];
+
+    //    if (procedure_code != 0x22000920)
+    //        return;
 
     /*check for init-ue-message*/
     if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0c) {
-        enb_ue_s1ap_id = get_enb_ue_id(s1ap_data, s1ap_length);
+        pair.enb_ue_s1ap_id = get_enb_ue_id(s1ap_data, s1ap_length);
 
-        mme_ue_s1ap_id = get_mme_ue_id(s1ap_data, s1ap_length);
+        pair.mme_ue_s1ap_id = get_mme_ue_id(s1ap_data, s1ap_length);
 
-        nas_pdu(s1ap_data, s1ap_length, enb_ue_s1ap_id);
+        nas_pdu(s1ap_data, s1ap_length, pair.enb_ue_s1ap_id);
     } else {
-        enb_ue_s1ap_id = get_enb_ue_id(s1ap_data, s1ap_length);
+        pair.enb_ue_s1ap_id = get_enb_ue_id(s1ap_data, s1ap_length);
 
-        mme_ue_s1ap_id = get_mme_ue_id(s1ap_data, s1ap_length);
+        pair.mme_ue_s1ap_id = get_mme_ue_id(s1ap_data, s1ap_length);
     }
 
-//    uint32_t procedure_code = *(uint32_t*)&s1ap_data[0];
-    //    printf("0x%04X) mme_counter: %d - enb_counter: %d\n", procedure_code, counter_mme, counter_enb);
     counter_mme = 0; counter_enb = 0;
-    printf("0x%04X) Message s1ap: eNB-UE-S1AP-ID: %d - MME-UE-S1AP-ID: %d\n", procedure_code, enb_ue_s1ap_id, mme_ue_s1ap_id);
+
+    if (__init && (pair.mme_ue_s1ap_id != 0x00)) {
+        mme_ue_ids[mme_ue_id_count++] = pair.mme_ue_s1ap_id;
+        enb_ue_ids[enb_ue_id_count++] = pair.enb_ue_s1ap_id;
+        __init = false;
+    }
+
+    return pair;
 }
 
 int is_s1ap_packet(const unsigned char *packet, int length, bool* is_retrans)
@@ -281,6 +327,8 @@ int is_s1ap_packet(const unsigned char *packet, int length, bool* is_retrans)
     //    bool is_client_to_server = (strcmp(src_ip, TARGET_CLIENT_IP) == 0);
     //    const char* direction = is_client_to_server ? "Client->Server" : "Server->Client";
 
+    ue_id_pair_t pair = {0};
+
     while (remaining_length >= (int)sizeof(sctp_chunk_header_t)) {
         const sctp_chunk_header_t *chunk = (const sctp_chunk_header_t*)chunk_ptr;
         uint16_t chunk_length = ntohs(chunk->length);
@@ -314,7 +362,7 @@ int is_s1ap_packet(const unsigned char *packet, int length, bool* is_retrans)
                         const uint8_t *s1ap_data = chunk_ptr + s1ap_payload_offset;
 
                         if (!(*is_retrans)) {
-                            parse_s1ap_message(s1ap_data, s1ap_payload_length);
+                            pair = parse_s1ap_message(s1ap_data, s1ap_payload_length);
                         }
                     }
                 }
@@ -331,5 +379,24 @@ int is_s1ap_packet(const unsigned char *packet, int length, bool* is_retrans)
         }
     }
 
-    return has_s1ap ? 1 : 0;
+    bool cap_this = false;
+
+    for (int i = 0; i < mme_ue_id_count; i++) {
+        if (pair.mme_ue_s1ap_id == mme_ue_ids[i]) {
+            cap_this = true;
+        }
+    }
+    for (int i = 0; i < enb_ue_id_count; i++) {
+        if (pair.enb_ue_s1ap_id == enb_ue_ids[i]) {
+            cap_this = true;
+        }
+    }
+
+    /*For PDN connectivity*/
+    if (__init) {
+        cap_this = true;
+    }
+
+
+    return has_s1ap&&cap_this ? 1 : 0;
 }
