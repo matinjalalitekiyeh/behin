@@ -8,16 +8,6 @@ static bool first_packet = true;
 #define TARGET_SERVER_IP "127.0.1.1"
 
 
-
-
-//typedef struct  {
-//    uint8_t attach_type : 3;
-//    uint8_t spare_bit : 1;
-//    uint8_t nas_key_set_identifier : 3;
-//    uint8_t tsc : 1;
-//}eps_type_t;
-
-
 uint32_t enb_ue_ids[1024 * 4];
 uint32_t mme_ue_ids[1024 * 4];
 uint32_t enb_ue_id_count = 0;
