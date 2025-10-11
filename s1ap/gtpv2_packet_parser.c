@@ -36,34 +36,40 @@ static uint32_t get_enb_ue_id(const uint8_t* message, int len)
 
     uint32_t enb_ue_s1ap_id = 0x00;
 
+    int indexes[20];
     int idx = 0;
-    for (int i = 0; i < len - 2; i++) {
+    for (int i = 0; i < len - 4; i++) {
         if (message[i] == 0x00 && message[i+1] == 0x08) {
             idx = i;
+            indexes[counter_enb] = i;
             counter_enb++;
-            //            break;
         }
     }
 
-    //    return 0;
-    uint16_t protocol_field = htons( *(uint16_t*)&message[idx] );
-    /*id-eNB-UE-S1AP-ID*/
-    if (protocol_field == 0x0008) {
-        const int len_idx = idx + (int)(sizeof (uint16_t));
-        uint16_t enb_ue_s1ap_id_len = htons( *(uint16_t*)&message[len_idx] );
+    for (int j = 0; j < counter_enb; j++) {
+        idx = indexes[j];
 
-        if (enb_ue_s1ap_id_len > 4)
-            return 0x00;
+        uint16_t protocol_field = htons( *(uint16_t*)&message[idx] );
 
-        const int enb_idx = len_idx + (int)(sizeof (uint16_t));
-        memcpy(&enb_ue_s1ap_id, &message[enb_idx], enb_ue_s1ap_id_len);
+        /*id-eNB-UE-S1AP-ID*/
+        if (protocol_field == 0x0008) {
+            const int len_idx = idx + 3;//(int)(sizeof (uint16_t));
+            uint8_t enb_ue_s1ap_id_len = ( *(uint8_t*)&message[len_idx] );
 
-        /*TODO(matin): fix size using len*/
-        if (enb_ue_s1ap_id_len == 2) {
-            /*implicit conversion loses integer precision*/
-            enb_ue_s1ap_id = htons(enb_ue_s1ap_id);
-        } else if (enb_ue_s1ap_id_len == 4) {
-            enb_ue_s1ap_id = htonl(enb_ue_s1ap_id);
+            if ((enb_ue_s1ap_id_len > 4) || (enb_ue_s1ap_id_len == 0)) {
+                continue;
+            }
+
+            idx = len_idx + 1;
+            if (enb_ue_s1ap_id_len == 1) {
+               enb_ue_s1ap_id = message[idx];
+            } else if (enb_ue_s1ap_id_len == 2) {
+                enb_ue_s1ap_id = (message[idx] << 8) | (message[idx+1] << 0);
+            } else if (enb_ue_s1ap_id_len == 3) {
+                enb_ue_s1ap_id = (message[idx] << 16) | (message[idx+1] << 8) | (message[idx+2] << 0);
+            } else if (enb_ue_s1ap_id_len == 4) {
+                enb_ue_s1ap_id = (message[idx] << 24) | (message[idx+1] << 16) | (message[idx+2] << 8) | (message[idx+3] << 0);
+            }
         }
     }
 
@@ -77,16 +83,12 @@ static uint32_t get_mme_ue_id(const uint8_t* message, int len)
     uint32_t mme_ue_s1ap_id = 0x00;
 
     int indexes[20];
-    //    int count = 0;
-
     int idx = 0;
     for (int i = 0; i < len - 4; i++) {
-        if (message[i] == 0x00 && message[i+1] == 0x00 && ((message[i+2] == 0x40)||(message[i+2] == 0x00)) ) {
+        if (message[i] == 0x00 && message[i+1] == 0x00) {
             idx = i;
             indexes[counter_mme] = i;
             counter_mme++;
-            printf("index: %d\n", i);
-            //            break;
         }
     }
 
@@ -97,29 +99,35 @@ static uint32_t get_mme_ue_id(const uint8_t* message, int len)
 
         /*id-MME-UE-S1AP-ID*/
         if (protocol_field == 0x0000) {
-            const int len_idx = idx + (int)(sizeof (uint16_t)) + 1;
-            uint16_t mme_ue_s1ap_id_len = ( *(uint16_t*)&message[len_idx] );
+
+            uint8_t check_criticality = ( *(uint8_t*)&message[(idx + 2)] );
+
+            int len_idx = 0;
+            if ((check_criticality == 0x40) || (check_criticality == 0x00)) {
+                len_idx = idx + 3;
+            } else {
+                len_idx = idx + 2;
+            }
 
 
-            printf("fuck  len: %d \n\n", mme_ue_s1ap_id_len);
-            if (mme_ue_s1ap_id_len > 4) {
+//            const int len_idx = idx + 3;//(int)(sizeof (uint16_t));
+            uint8_t mme_ue_s1ap_id_len = ( *(uint8_t*)&message[len_idx] );
+
+            if ((mme_ue_s1ap_id_len > 4) || (mme_ue_s1ap_id_len == 0)) {
                 continue;
             }
 
-            const int enb_idx = len_idx + (int)(sizeof (uint8_t));
-            memcpy(&mme_ue_s1ap_id, &message[enb_idx], mme_ue_s1ap_id_len);
-
-            /*TODO(matin): fix size using len*/
-            if (mme_ue_s1ap_id_len == 2) {
-                /*implicit conversion loses integer precision*/
-                mme_ue_s1ap_id = htons(mme_ue_s1ap_id);
+            idx = len_idx + 1;
+            if (mme_ue_s1ap_id_len == 1) {
+               mme_ue_s1ap_id = message[idx];
+            } else if (mme_ue_s1ap_id_len == 2) {
+                mme_ue_s1ap_id = (message[idx] << 8) | (message[idx+1] << 0);
+            } else if (mme_ue_s1ap_id_len == 3) {
+                mme_ue_s1ap_id = (message[idx] << 16) | (message[idx+1] << 8) | (message[idx+2] << 0);
             } else if (mme_ue_s1ap_id_len == 4) {
-                mme_ue_s1ap_id = htonl(mme_ue_s1ap_id);
+                mme_ue_s1ap_id = (message[idx] << 24) | (message[idx+1] << 16) | (message[idx+2] << 8) | (message[idx+3] << 0);
             }
         }
-
-
-//                printf("%d) fuck mme_id: %d\n", j, mme_ue_s1ap_id);
     }
 
     return mme_ue_s1ap_id;
@@ -177,8 +185,8 @@ void parse_s1ap_message(const uint8_t *s1ap_data, int s1ap_length)
 
     uint32_t procedure_code = *(uint32_t*)&s1ap_data[0];
 
-    if (procedure_code != 0x22000920)
-        return;
+//    if (procedure_code != 0x22000920)
+//        return;
 
     /*check for init-ue-message*/
     if (s1ap_data[0] == 0x00 && s1ap_data[1] == 0x0c) {
