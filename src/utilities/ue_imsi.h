@@ -81,6 +81,7 @@ long long imsi_direct_to_long_long(const unsigned char* packet_bytes);
 
 //    return result;
 //}
+void long_long_to_imsi_packet(long long imsi_value, unsigned char *packet);
 
 
 #endif /* UE_IMSI_H */

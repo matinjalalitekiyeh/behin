@@ -148,3 +148,48 @@ void parse_imsi_simple(const uint8_t *imsi_data, int length, char *imsi_str) {
 
 //      printf("  Simple IMSI: %s\n", imsi_str);
 }
+
+
+// Convert long long to packet
+void long_long_to_imsi_packet(long long imsi_value, unsigned char *packet)
+{
+    imsi_structure_t* imsi = (imsi_structure_t*)packet;
+
+    // Clear the packet first
+    memset(packet, 0, sizeof(imsi_structure_t));
+
+    // Extract digits from the long long value
+    long long temp = imsi_value;
+    uint8_t digits[15];
+    int digit_count = 0;
+
+    // Extract all digits (in reverse order)
+    while (temp > 0 && digit_count < 15) {
+        digits[digit_count++] = temp % 10;
+        temp /= 10;
+    }
+
+    // Set type field (usually 1 for IMSI)
+    imsi->type = 1;
+
+    // Set odd_even flag based on digit count
+    imsi->odd_even = (digit_count == 15) ? 1 : 0;
+
+    // Assign digits to the packed BCD structure
+    // Note: The digits are stored in reverse order in the structure
+    if (digit_count >= 1) imsi->digit1 = digits[14];
+    if (digit_count >= 2) imsi->digit2 = digits[13];
+    if (digit_count >= 3) imsi->digit3 = digits[12];
+    if (digit_count >= 4) imsi->digit4 = digits[11];
+    if (digit_count >= 5) imsi->digit5 = digits[10];
+    if (digit_count >= 6) imsi->digit6 = digits[9];
+    if (digit_count >= 7) imsi->digit7 = digits[8];
+    if (digit_count >= 8) imsi->digit8 = digits[7];
+    if (digit_count >= 9) imsi->digit9 = digits[6];
+    if (digit_count >= 10) imsi->digit10 = digits[5];
+    if (digit_count >= 11) imsi->digit11 = digits[4];
+    if (digit_count >= 12) imsi->digit12 = digits[3];
+    if (digit_count >= 13) imsi->digit13 = digits[2];
+    if (digit_count >= 14) imsi->digit14 = digits[1];
+    if (digit_count >= 15) imsi->digit15 = digits[0];
+}
