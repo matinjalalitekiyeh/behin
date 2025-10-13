@@ -1,4 +1,4 @@
-#include "diameter_packet_parser.h"
+#include "s6a_packet_parser.h"
 
 #define TARGET_CLIENT_IP "192.168.0.186"
 #define TARGET_SERVER_IP "192.168.0.180"
