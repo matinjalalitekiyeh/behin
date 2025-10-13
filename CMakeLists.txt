@@ -76,11 +76,11 @@ add_subdirectory(s1ap)
 
 add_subdirectory(s6a)
 
-#add_subdirectory(s11)
-#add_subdirectory(s5c)
-#add_subdirectory(sxa)
-#add_subdirectory(sxb)
-#add_subdirectory(gx)
+add_subdirectory(s11)
+add_subdirectory(s5c)
+add_subdirectory(sxa)
+add_subdirectory(sxb)
+add_subdirectory(gx)
 
 
 #if(ENABLE_TESTING)
