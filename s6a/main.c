@@ -1,4 +1,4 @@
-#include "diameter_packet_parser.h"
+#include "s6a_packet_parser.h"
 #include "pcap_file_initialize.h"
 
 //usage: sudo ./a.out --seperate -r 999990123456780~999990123456780
