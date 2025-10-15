@@ -69,6 +69,7 @@ void cli_command_executor::execute_help() const {
               << "  exit, quit              - Exit the program\n"
               << "  detach [IMSI]           - detach UE from core forcefully\n"
               << "  detach -c [IMSI]        - detach UE from core forcefully and clear session\n"
+              << "  rm_enb [enb_id]         - detach ENB-ID from core forcefully and clear session\n"
               << std::endl;
     std::cout << "History References:\n"
               << "  !<number>               - Execute command by number (e.g., !3)\n"

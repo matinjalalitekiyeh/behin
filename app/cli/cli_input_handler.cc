@@ -62,7 +62,7 @@ char* cli_input_handler::custom_generator(const char* text, int state) {
         match_index = 0;
 
         std::vector<std::string> commands = {
-            "help", "history", "clear", "exit", "quit", "detach"
+            "help", "history", "clear", "exit", "quit", "detach", "rm_enb"
         };
 
         for (const auto& cmd : commands) {
