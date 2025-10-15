@@ -3,6 +3,7 @@
 
 enum message_type {
     detach = 1,
+    rm_enb,
     count
 };
 
@@ -31,6 +32,13 @@ message_t cli_command_executor::execute(const command& cmd) {
         memset(&dm, 0x00, sizeof(dm));
         execute_detach(cmd.args, dm);
         memcpy(msg.data, &dm, sizeof(dm));
+    }
+    else if (cmd.name == "rm_enb") {
+        rm_enb_t rm_enb_;
+        msg.type = message_type::rm_enb;
+        memset(&rm_enb_, 0x00, sizeof(rm_enb_));
+        rm_enb(cmd.args, rm_enb_);
+        memcpy(msg.data, &rm_enb_, sizeof(rm_enb_));
     }
     else if (cmd.name == "history") {
         execute_history();
@@ -76,4 +84,10 @@ void cli_command_executor::execute_detach(const std::vector<std::string> &args, 
     for (const auto& o : args) {
         tm.imsi = std::stoull(o.c_str(), nullptr, 0);
     }
+}
+
+void cli_command_executor::rm_enb(const std::vector<std::string> &args, rm_enb_t &enb)
+{
+    if (!args.size()) return;
+    enb.enb_id = std::stoul(args.at(0).c_str(), nullptr, 0);
 }

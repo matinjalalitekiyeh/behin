@@ -6,6 +6,10 @@
 #include <algorithm>
 #include <string.h>
 
+struct rm_enb_t {
+    uint32_t enb_id;
+};
+
 struct detach_message_t {
     bool is_clean_up;
     size_t count;
@@ -42,6 +46,7 @@ private:
     void execute_help() const;
 
     void execute_detach(const std::vector<std::string>& args, detach_message_t &tm);
+    void rm_enb(const std::vector<std::string>& args, rm_enb_t &enb);
 };
 
 #endif /* COMMAND_EXECUTOR_HXX */
