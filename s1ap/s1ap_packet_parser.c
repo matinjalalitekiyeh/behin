@@ -4,8 +4,8 @@
 static uint32_t previous_tsn = 0;
 static bool first_packet = true;
 
-#define TARGET_CLIENT_IP "192.168.0.186"
-#define TARGET_SERVER_IP "192.168.0.206"
+#define TARGET_CLIENT_IP "127.0.0.2"
+#define TARGET_SERVER_IP "127.0.1.1"
 
 
 uint32_t enb_ue_ids[1024 * 4];
@@ -31,13 +31,16 @@ static uint32_t get_enb_ue_id(const uint8_t* message, int len)
 
     uint32_t enb_ue_s1ap_id = 0x00;
 
-    int indexes[20];
+    int indexes[200];
     int idx = 0;
     for (int i = 0; i < len - 4; i++) {
         if (message[i] == 0x00 && message[i+1] == 0x08) {
             idx = i;
             indexes[counter_enb] = i;
             counter_enb++;
+	    if (counter_enb > 198) {
+		    break;
+	    }
         }
     }
 
@@ -86,13 +89,16 @@ static uint32_t get_mme_ue_id(const uint8_t* message, int len)
 
     uint32_t mme_ue_s1ap_id = 0x00;
 
-    int indexes[20];
+    int indexes[200];
     int idx = 0;
     for (int i = 0; i < len - 4; i++) {
         if (message[i] == 0x00 && message[i+1] == 0x00) {
             idx = i;
             indexes[counter_mme] = i;
             counter_mme++;
+	    if (counter_mme > 198) {
+		    break;
+	    }
         }
     }
 
@@ -184,7 +190,7 @@ static void nas_pdu(const uint8_t *message, int len, uint32_t enb_ue_s1ap_id) {
         printf("imsi: %llu\n", imsi);
 
         if (enb_ue_s1ap_id != 0x00) {
-            if (imsi == 999700000000009) {
+            if (imsi == 999700000000005) {
                 printf("FOUND IMSI: %llu\n", imsi);
                 enb_ue_ids[enb_ue_id_count] = enb_ue_s1ap_id;
                 __init = true;
