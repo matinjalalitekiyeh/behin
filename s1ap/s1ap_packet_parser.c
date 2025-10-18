@@ -350,23 +350,23 @@ int is_s1ap_packet(const unsigned char *packet, int length, bool* is_retrans)
         }
     }
 
-    bool cap_this = false;
+    bool cap_this = true;
 
-    for (int i = 0; i < mme_ue_id_count; i++) {
-        if (pair.mme_ue_s1ap_id == mme_ue_ids[i]) {
-            cap_this = true;
-        }
-    }
-    for (int i = 0; i < enb_ue_id_count; i++) {
-        if (pair.enb_ue_s1ap_id == enb_ue_ids[i]) {
-            cap_this = true;
-        }
-    }
+//    for (int i = 0; i < mme_ue_id_count; i++) {
+//        if (pair.mme_ue_s1ap_id == mme_ue_ids[i]) {
+//            cap_this = true;
+//        }
+//    }
+//    for (int i = 0; i < enb_ue_id_count; i++) {
+//        if (pair.enb_ue_s1ap_id == enb_ue_ids[i]) {
+//            cap_this = true;
+//        }
+//    }
 
-    /*For PDN connectivity*/
-    if (__init) {
-        cap_this = true;
-    }
+//    /*For PDN connectivity*/
+//    if (__init) {
+//        cap_this = true;
+//    }
 
 
     return has_s1ap&&cap_this ? 1 : 0;

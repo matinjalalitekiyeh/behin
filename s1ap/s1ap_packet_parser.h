@@ -13,9 +13,9 @@
 #define PCAP_MAGIC 0xa1b2c3d4
 
 // Configuration - CHANGE THESE
-#define TARGET_CLIENT_IP "127.0.0.2"
-#define TARGET_SERVER_IP "127.0.0.3"
-#define GTPV2_PORT 2123
+//#define TARGET_CLIENT_IP "127.0.0.2"
+//#define TARGET_SERVER_IP "127.0.0.3"
+//#define GTPV2_PORT 2123
 
 
 
